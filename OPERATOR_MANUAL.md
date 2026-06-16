@@ -68,6 +68,22 @@ Open the website:
 http://127.0.0.1:8000
 ```
 
+Important:
+
+Use this command on your Mac:
+
+```bash
+python3 app.py
+```
+
+Do not use this command on your Mac:
+
+```bash
+HOST=0.0.0.0 DATABASE_PATH=/var/data/annamacharya_portal.sqlite3 python3 app.py
+```
+
+That is the Render production start command. `/var/data` is a Render persistent-disk path, not your local Mac project path.
+
 Stop the server:
 
 ```text
@@ -557,6 +573,8 @@ python3 manage.py init-db
 ```bash
 HOST=0.0.0.0 DATABASE_PATH=/var/data/annamacharya_portal.sqlite3 python3 app.py
 ```
+
+This command belongs only inside Render's **Start Command** field. Do not run it locally on your Mac.
 
 9. Open **Advanced**.
 10. Add persistent disk:

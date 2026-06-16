@@ -37,6 +37,14 @@ Open:
 http://127.0.0.1:8000
 ```
 
+Do not use the Render production start command on your Mac:
+
+```bash
+HOST=0.0.0.0 DATABASE_PATH=/var/data/annamacharya_portal.sqlite3 python3 app.py
+```
+
+That command is only for Render after you add a persistent disk mounted at `/var/data`. On your Mac, `/var/data` usually does not exist and your user may not have permission to create it.
+
 ## SQLite Tables
 
 `users`
