@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Annamacharya University Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <section id="splash" class="splash">
+    <img class="splash-photo" src="/images/au4.jpeg" alt="Annamacharya University campus entrance">
+    <div class="splash-shade"></div>
+    <div class="splash-card">
+      <img class="splash-logo" src="/images/au1.jpeg" alt="Annamacharya University logo">
+      <p class="eyebrow">Student and Management Staff Login Hub</p>
+      <h1>Annamacharya University</h1>
+      <p>Secure role-based portal for student enrolment, faculty verification, and academic management.</p>
+      <button id="enterPortal" class="primary-btn">
+        <span>Enter Portal</span>
+        <span class="material-symbols-outlined">arrow_forward</span>
+      </button>
+    </div>
+  </section>
+
+  <div id="app" class="app is-hidden">
+    <header class="topbar">
+      <button class="brand" data-view="roles" aria-label="Go to role selection">
+        <img src="/images/au1.jpeg" alt="Annamacharya University logo">
+        <span>
+          <strong>Annamacharya University</strong>
+          <small>Unified Academic Portal</small>
+        </span>
+      </button>
+      <nav>
+        <button data-view="roles">Roles</button>
+        <button data-view="student-register">Student Account</button>
+        <button data-view="staff-register">Staff Account</button>
+        <button data-view="login">Login</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="roles" class="view hero-view">
+        <div class="hero-copy">
+          <p class="eyebrow">Gateway to Excellence</p>
+          <h2>Choose your login role</h2>
+          <p>Students create accounts with academic details and roll numbers. Faculty and staff must register with a university-issued faculty code to prevent role misuse.</p>
+          <div class="quick-actions">
+            <button class="primary-btn" data-view="student-register">
+              <span class="material-symbols-outlined">school</span>
+              Student Registration
+            </button>
+            <button class="ghost-btn" data-view="staff-register">
+              <span class="material-symbols-outlined">person_pin</span>
+              Staff Registration
+            </button>
+          </div>
+        </div>
+        <div class="campus-panel">
+          <img src="/images/a.jpeg" alt="Landscape view of Annamacharya University campus">
+          <div>
+            <strong>Role-based authentication</strong>
+            <span>Student roll number login and faculty code login run through separate database checks.</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="student-register" class="view form-shell is-hidden">
+        <aside>
+          <img src="/images/AU.jpeg" alt="Annamacharya University banner">
+          <h2>Student Enrolment</h2>
+          <p>Create an account with your profile photo, course, year, semester, roll number and password.</p>
+          <ol>
+            <li><span>1</span> Personal profile</li>
+            <li><span>2</span> Academic details</li>
+            <li><span>3</span> Secure credentials</li>
+          </ol>
+        </aside>
+        <form id="studentForm" class="portal-form" autocomplete="on">
+          <h2>Student Account</h2>
+          <div class="photo-row">
+            <label class="photo-picker">
+              <img data-preview="student" src="/images/au1.jpeg" alt="Student profile preview">
+              <input type="file" name="profile_photo_file" accept="image/*" data-photo="student">
+              <span class="material-symbols-outlined">add_a_photo</span>
+            </label>
+            <p>Upload a clear profile photo for your student ID.</p>
+          </div>
+          <div class="grid two">
+            <label>Full Name<input name="name" required placeholder="Enter full name"></label>
+            <label>Gender<select name="gender" required><option value="">Select</option><option>Female</option><option>Male</option><option>Other</option></select></label>
+            <label>Course<select name="course" required><option value="">Select course</option><option>B.Tech</option><option>M.Tech</option><option>B.Ed</option><option>MBA</option><option>PhD</option><option>PG</option></select></label>
+            <label>Year<select name="year" required><option value="">Select year</option><option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option><option>Research</option></select></label>
+            <label>Semester<select name="semester" required><option value="">Select semester</option><option>Semester 1</option><option>Semester 2</option><option>Semester 3</option><option>Semester 4</option><option>Semester 5</option><option>Semester 6</option><option>Semester 7</option><option>Semester 8</option></select></label>
+            <label>Roll Number<input name="roll_number" required placeholder="Example: AU23A0123"></label>
+            <label>Password<input name="password" required minlength="6" type="password" placeholder="Minimum 6 characters"></label>
+            <label>Confirm Password<input name="confirm_password" required minlength="6" type="password" placeholder="Repeat password"></label>
+          </div>
+          <button class="primary-btn" type="submit">
+            <span>Create Student Account</span>
+            <span class="material-symbols-outlined">how_to_reg</span>
+          </button>
+        </form>
+      </section>
+
+      <section id="staff-register" class="view form-shell is-hidden">
+        <aside>
+          <img src="/images/au3.jpeg" alt="Annamacharya University academic building">
+          <h2>Faculty Verification</h2>
+          <p>Staff registration requires the official university faculty code. Demo codes are listed in the project README.</p>
+          <ol>
+            <li><span>1</span> Staff identity</li>
+            <li><span>2</span> Faculty code check</li>
+            <li><span>3</span> Staff dashboard access</li>
+          </ol>
+        </aside>
+        <form id="staffForm" class="portal-form" autocomplete="on">
+          <h2>Staff Account</h2>
+          <div class="photo-row">
+            <label class="photo-picker">
+              <img data-preview="staff" src="/images/au1.jpeg" alt="Staff profile preview">
+              <input type="file" name="profile_photo_file" accept="image/*" data-photo="staff">
+              <span class="material-symbols-outlined">add_a_photo</span>
+            </label>
+            <p>Upload a professional profile photo for faculty records.</p>
+          </div>
+          <div class="grid two">
+            <label>Full Name<input name="name" required placeholder="Enter full name"></label>
+            <label>Gender<select name="gender" required><option value="">Select</option><option>Female</option><option>Male</option><option>Other</option></select></label>
+            <label>Department<input name="department" required placeholder="Example: CSE Department"></label>
+            <label>Faculty Code<input name="faculty_code" required placeholder="Example: AU-FAC-2026"></label>
+            <label>Password<input name="password" required minlength="6" type="password" placeholder="Minimum 6 characters"></label>
+            <label>Confirm Password<input name="confirm_password" required minlength="6" type="password" placeholder="Repeat password"></label>
+          </div>
+          <button class="primary-btn" type="submit">
+            <span>Create Staff Account</span>
+            <span class="material-symbols-outlined">verified_user</span>
+          </button>
+        </form>
+      </section>
+
+      <section id="login" class="view login-view is-hidden">
+        <form id="loginForm" class="portal-form compact">
+          <img class="form-logo" src="/images/au1.jpeg" alt="Annamacharya University logo">
+          <h2>Portal Login</h2>
+          <div class="segmented" role="group" aria-label="Login role">
+            <label><input type="radio" name="role" value="student" checked><span>Student</span></label>
+            <label><input type="radio" name="role" value="staff"><span>Staff</span></label>
+          </div>
+          <label>ID Number<input name="identifier" required placeholder="Roll number or faculty code"></label>
+          <label>Password<input name="password" type="password" required placeholder="Enter password"></label>
+          <button class="primary-btn" type="submit">
+            <span>Login</span>
+            <span class="material-symbols-outlined">login</span>
+          </button>
+        </form>
+      </section>
+
+      <section id="dashboard" class="view dashboard is-hidden">
+        <div class="dashboard-hero">
+          <img src="/images/auset.jpeg" alt="Aerial view of Annamacharya University campus">
+          <div>
+            <p class="eyebrow">Authenticated Dashboard</p>
+            <h2 id="dashName">Welcome</h2>
+            <p id="dashMeta">Your account is active.</p>
+          </div>
+        </div>
+        <div class="dashboard-grid">
+          <article>
+            <span class="material-symbols-outlined">account_circle</span>
+            <h3>Profile</h3>
+            <p id="dashProfile">Your saved registration details appear here.</p>
+          </article>
+          <article>
+            <span class="material-symbols-outlined">security</span>
+            <h3>Authentication</h3>
+            <p>Student and staff login records are separated by role in SQLite.</p>
+          </article>
+          <article>
+            <span class="material-symbols-outlined">database</span>
+            <h3>Database</h3>
+            <p>Accounts are stored locally in <strong>annamacharya_portal.sqlite3</strong>.</p>
+          </article>
+        </div>
+        <button id="logoutBtn" class="ghost-btn">
+          <span class="material-symbols-outlined">logout</span>
+          Logout
+        </button>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
