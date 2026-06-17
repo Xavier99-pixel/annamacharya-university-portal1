@@ -79,10 +79,10 @@ python3 app.py
 Do not use this command on your Mac:
 
 ```bash
-HOST=0.0.0.0 DATABASE_PATH=/var/data/annamacharya_portal.sqlite3 python3 app.py
+HOST=0.0.0.0 DATABASE_PATH=/tmp/annamacharya_portal.sqlite3 python3 app.py
 ```
 
-That is the Render production start command. `/var/data` is a Render persistent-disk path, not your local Mac project path.
+That is the Render hosted start command. On your Mac, use only `python3 app.py`.
 
 Stop the server:
 
@@ -533,7 +533,7 @@ This project uses Python backend + SQLite database file.
 
 Render can host dynamic web apps and gives every web service an `onrender.com` public URL. Render web services must bind to host `0.0.0.0` to receive public internet traffic.
 
-SQLite needs persistent storage. Render says services have an ephemeral filesystem by default, and without a persistent disk local file changes are lost after redeploys/restarts. So use a persistent disk mounted at `/var/data`.
+Free deployment uses temporary SQLite storage. This means the website can run for demo/testing without paying, but registered users and marks can reset after redeploys or service restarts. For real permanent data later, use a persistent disk or cloud database.
 
 ## 9. Prepare Project For GitHub
 
@@ -623,22 +623,15 @@ python3 manage.py init-db
 8. Set start command:
 
 ```bash
-HOST=0.0.0.0 DATABASE_PATH=/var/data/annamacharya_portal.sqlite3 python3 app.py
+HOST=0.0.0.0 DATABASE_PATH=/tmp/annamacharya_portal.sqlite3 python3 app.py
 ```
 
 This command belongs only inside Render's **Start Command** field. Do not run it locally on your Mac.
 
-9. Open **Advanced**.
-10. Add persistent disk:
-
-```text
-Mount path: /var/data
-Size: smallest available size
-```
-
-11. Click **Create Web Service**.
-12. Wait for deploy to finish.
-13. Open your Render URL:
+9. Do not add a disk for free deployment.
+10. Click **Create Web Service**.
+11. Wait for deploy to finish.
+12. Open your Render URL:
 
 ```text
 https://your-service-name.onrender.com
@@ -755,7 +748,7 @@ git push
 
 ## 14. Production Database Management After Deployment
 
-For a deployed Render app with SQLite on `/var/data`, do not expect DataGrip on your laptop to automatically see the server database. Your laptop database and deployed database are different files.
+For a deployed Render free app with SQLite on `/tmp`, do not expect DataGrip on your laptop to automatically see the server database. Your laptop database and deployed database are different files.
 
 Local database:
 
@@ -766,7 +759,7 @@ Local database:
 Render database:
 
 ```text
-/var/data/annamacharya_portal.sqlite3
+/tmp/annamacharya_portal.sqlite3
 ```
 
 To manage production data:
@@ -805,7 +798,7 @@ Do not edit password_salt manually
 Do not edit sqlite_sequence
 Do not share database file publicly
 Do not push annamacharya_portal.sqlite3 to GitHub
-Do not deploy SQLite without persistent disk
+Do not use free temporary SQLite for real production data
 ```
 
 ## 16. Most Common Commands
@@ -879,4 +872,4 @@ Use GitHub to store code.
 
 Use Render to make it a public website.
 
-Use a persistent disk so the SQLite database survives deploys.
+Use free temporary SQLite for demos; use a persistent disk or cloud database later if the database must survive deploys.

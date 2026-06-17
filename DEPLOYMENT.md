@@ -38,13 +38,13 @@ Open:
 http://127.0.0.1:8000
 ```
 
-Do not use the Render production start command on your Mac:
+Do not use the Render start command on your Mac:
 
 ```bash
-HOST=0.0.0.0 DATABASE_PATH=/var/data/annamacharya_portal.sqlite3 python3 app.py
+HOST=0.0.0.0 DATABASE_PATH=/tmp/annamacharya_portal.sqlite3 python3 app.py
 ```
 
-That command is only for Render after you add a persistent disk mounted at `/var/data`. On your Mac, `/var/data` usually does not exist and your user may not have permission to create it.
+That command is only for the hosted Render environment. On your Mac, use `python3 app.py`.
 
 ## SQLite Tables
 
@@ -114,9 +114,18 @@ Delete a user:
 python3 manage.py delete-user 1
 ```
 
-## Recommended Full Deployment: Render Web Service
+## Free Deployment: Render Web Service
 
-This is the simplest path for the current Python + SQLite project.
+This is the simplest free path for the current Python + SQLite project.
+
+Important free-mode limitation:
+
+```text
+SQLite data on Render free mode is temporary.
+If the service restarts or redeploys, registered users and marks can reset.
+```
+
+This is okay for a college project demo. It is not okay for a real production university system.
 
 1. Create a GitHub repository.
 2. Upload/push this project folder to GitHub.
@@ -126,20 +135,14 @@ This is the simplest path for the current Python + SQLite project.
 ```text
 Runtime: Python
 Build Command: python3 manage.py init-db
-Start Command: HOST=0.0.0.0 DATABASE_PATH=/var/data/annamacharya_portal.sqlite3 python3 app.py
+Start Command: HOST=0.0.0.0 DATABASE_PATH=/tmp/annamacharya_portal.sqlite3 python3 app.py
 ```
 
-5. Add a persistent disk:
-
-```text
-Mount path: /var/data
-Size: smallest available for your plan
-```
-
+5. Do not add a disk if you want free deployment.
 6. Deploy the service.
 7. Open the Render URL.
 
-Important: without a persistent disk, your SQLite database can disappear after redeploy/restart on many hosting platforms.
+For permanent production data later, upgrade to a persistent disk or use a cloud database.
 
 ## Netlify Option
 
