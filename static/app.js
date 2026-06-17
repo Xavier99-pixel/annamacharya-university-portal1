@@ -164,6 +164,29 @@ function renderDashboard(user) {
     ? `${user.course}, ${user.year}, ${user.semester}. Gender: ${user.gender}.`
     : `${user.course}. Gender: ${user.gender}.`;
   document.getElementById("dashProfile").textContent = details;
+  document.getElementById("dashPhoto").src = user.profile_photo || "/images/au1.jpeg";
+  renderSavedDetails(user);
+}
+
+function renderSavedDetails(user) {
+  const rows = [
+    ["Role", titleCase(user.role)],
+    ["Full Name", user.name],
+    [user.role === "student" ? "Roll Number" : "Faculty Code", user.role === "student" ? user.roll_number : user.faculty_code],
+    [user.role === "student" ? "Course" : "Department", user.course],
+    ["Gender", user.gender],
+  ];
+
+  if (user.role === "student") {
+    rows.splice(4, 0, ["Year", user.year], ["Semester", user.semester]);
+  }
+
+  rows.push(["Registered", formatDate(user.created_at)]);
+
+  document.getElementById("dashDetails").innerHTML = rows
+    .filter(([, value]) => value)
+    .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`)
+    .join("");
 }
 
 function notify(message, type = "") {
@@ -186,6 +209,28 @@ function readFileAsDataUrl(file) {
 
 function titleCase(value) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 hydrate();

@@ -546,8 +546,9 @@ select:focus {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 0.8fr));
   gap: 16px;
+  align-items: start;
 }
 
 .dashboard-grid article {
@@ -565,6 +566,55 @@ select:focus {
 .dashboard-grid h3 {
   color: var(--primary);
   margin: 12px 0 6px;
+}
+
+.profile-card {
+  display: grid;
+  gap: 14px;
+}
+
+.saved-profile {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.saved-profile img {
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--primary-soft);
+  background: #fff;
+}
+
+.saved-profile dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.saved-profile div {
+  min-width: 0;
+}
+
+.saved-profile dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.saved-profile dd {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .toast {
@@ -673,5 +723,10 @@ select:focus {
   .photo-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .saved-profile,
+  .saved-profile dl {
+    grid-template-columns: 1fr;
   }
 }
