@@ -2,6 +2,8 @@
 
 Student, faculty, and HOD login hub with local Python, SQLite authentication, profile photos, role-based dashboards, database-managed verification codes, and academic record management.
 
+Student registration includes phone number + OTP verification. In free demo mode, the backend generates an OTP and shows it on screen; connect an SMS provider later for real delivery.
+
 ## Run Locally
 
 ```bash
@@ -29,6 +31,7 @@ The frontend calls backend API URLs such as `/api/register` and `/api/login`.
 - `hod_codes`: allowed HOD verification codes
 - `academic_records`: student attendance, marks, CGPA, and performance
 - `faculty_attendance`: faculty attendance and performance managed by HOD
+- `otp_verifications`: phone OTP generation and verification for student registration
 
 You do not manually connect the frontend to SQLite. The browser talks to Python; Python talks to SQLite.
 
@@ -90,4 +93,4 @@ python3 manage.py tables
 
 ## Notes
 
-The database is created automatically as `annamacharya_portal.sqlite3`. This local Python backend will not run on a plain Netlify static deploy; for Netlify you can deploy the frontend and later move the API into Netlify Functions or another backend service.
+The database is created automatically as `annamacharya_portal.sqlite3`. Local DataGrip sees only your local database file. Free Render deployment uses a separate temporary SQLite file on the hosted server, so users registered on the Render URL will not automatically appear in your local DataGrip.

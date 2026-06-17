@@ -22,7 +22,9 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--surface);
+  background:
+    linear-gradient(135deg, rgba(214, 227, 255, 0.34), transparent 34rem),
+    var(--surface);
   color: var(--ink);
 }
 
@@ -130,9 +132,10 @@ button {
   gap: 24px;
   min-height: 76px;
   padding: 12px clamp(18px, 5vw, 56px);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.82);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(18px);
+  box-shadow: 0 8px 34px rgba(0, 32, 69, 0.06);
 }
 
 .brand {
@@ -173,7 +176,7 @@ button {
   border: 1px solid transparent;
   background: transparent;
   color: var(--muted);
-  padding: 10px 12px;
+  padding: 10px 18px;
   border-radius: 8px;
 }
 
@@ -280,18 +283,28 @@ main {
 
 .campus-panel div {
   display: grid;
-  gap: 6px;
-  padding: 20px;
+  gap: 8px;
+  padding: 22px;
 }
 
 .campus-panel strong {
   color: var(--primary);
-  font-size: 19px;
+  font-size: 21px;
 }
 
 .campus-panel span {
   color: var(--muted);
   line-height: 1.55;
+}
+
+.campus-link {
+  color: var(--secondary);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.campus-link:hover {
+  text-decoration: underline;
 }
 
 .form-shell {
@@ -435,6 +448,37 @@ main {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.otp-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid rgba(0, 97, 165, 0.2);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(214, 227, 255, 0.52), rgba(255, 255, 255, 0.92));
+}
+
+.otp-panel p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.otp-panel .otp-success {
+  color: var(--success);
+}
+
+.otp-panel .otp-error {
+  color: var(--danger);
+}
+
+.otp-panel .otp-demo {
+  color: var(--secondary);
+}
+
 label {
   display: grid;
   gap: 8px;
@@ -572,6 +616,7 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 22px;
+  box-shadow: 0 12px 34px rgba(0, 32, 69, 0.08);
 }
 
 .dashboard-grid .material-symbols-outlined {
@@ -679,6 +724,15 @@ select:focus {
   box-shadow: 0 18px 45px rgba(0, 32, 69, 0.14);
 }
 
+.workspace-header::after {
+  content: "";
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
 .workspace-header h2,
 .workspace-header p {
   margin: 0;
@@ -738,7 +792,7 @@ select:focus {
 
 table {
   width: 100%;
-  min-width: 760px;
+  min-width: 940px;
   border-collapse: collapse;
   background: #fff;
 }
@@ -881,6 +935,10 @@ tbody tr:hover {
   .photo-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .otp-panel {
+    grid-template-columns: 1fr;
   }
 
   .saved-profile,

@@ -6,6 +6,7 @@ const state = {
   user: null,
   students: [],
   faculty: [],
+  otpVerifiedPhone: "",
 };
 
 const views = Array.from(document.querySelectorAll(".view"));
@@ -14,6 +15,9 @@ const splash = document.getElementById("splash");
 const app = document.getElementById("app");
 const isHod = document.getElementById("isHod");
 const hodCodeField = document.getElementById("hodCodeField");
+const sendOtpBtn = document.getElementById("sendOtpBtn");
+const verifyOtpBtn = document.getElementById("verifyOtpBtn");
+const otpStatus = document.getElementById("otpStatus");
 
 document.getElementById("enterPortal").addEventListener("click", () => {
   splash.style.transition = "opacity 520ms ease, transform 520ms ease";
@@ -35,6 +39,9 @@ document.querySelectorAll(".logout-action").forEach((button) => {
 });
 
 document.getElementById("logoutBtn").addEventListener("click", logout);
+
+sendOtpBtn.addEventListener("click", requestStudentOtp);
+verifyOtpBtn.addEventListener("click", verifyStudentOtp);
 
 isHod.addEventListener("change", () => {
   hodCodeField.classList.toggle("is-hidden", !isHod.checked);
@@ -69,6 +76,11 @@ document.getElementById("studentForm").addEventListener("submit", async (event) 
     notify("Passwords do not match.", "error");
     return;
   }
+  const phone = cleanPhone(data.phone_number);
+  if (state.otpVerifiedPhone !== phone) {
+    notify("Verify phone number with OTP before creating student account.", "error");
+    return;
+  }
   const result = await postJson("/api/register", {
     role: "student",
     name: data.name,
@@ -78,6 +90,7 @@ document.getElementById("studentForm").addEventListener("submit", async (event) 
     year: data.year,
     semester: data.semester,
     roll_number: data.roll_number,
+    phone_number: phone,
     password: data.password,
     profile_photo: state.photos.student,
   });
@@ -230,7 +243,9 @@ async function renderStudentDashboard(user) {
   const record = result.user?.academic_record || {};
   renderMetricList("studentAcademicRecord", [
     ["Attendance", `${record.attendance || 0}%`],
-    ["Marks", `${record.marks || 0}/100`],
+    ["Internal Marks", `${record.internal_marks || 0}/100`],
+    ["External Marks", `${record.external_marks || 0}/100`],
+    ["Total Marks", `${record.marks || 0}/100`],
     ["CGPA", `${record.cgpa || 0}/10`],
     ["Performance", record.performance || "Not updated"],
   ]);
@@ -296,11 +311,13 @@ function studentRows(students) {
       <td>${escapeHtml(student.name)}</td>
       <td>${escapeHtml([student.course, student.branch, student.year, student.semester].filter(Boolean).join(" · "))}</td>
       <td>${escapeHtml(student.attendance || 0)}%</td>
+      <td>${escapeHtml(student.internal_marks || 0)}</td>
+      <td>${escapeHtml(student.external_marks || 0)}</td>
       <td>${escapeHtml(student.marks || 0)}</td>
       <td>${escapeHtml(student.cgpa || 0)}</td>
       <td>${escapeHtml(student.performance || "Not updated")}</td>
     </tr>
-  `).join("") || emptyRow(7, "No student records found.");
+  `).join("") || emptyRow(9, "No student records found.");
 }
 
 function emptyRow(columns, message) {
@@ -331,7 +348,7 @@ function renderSavedDetails(user) {
   ];
 
   if (user.role === "student") {
-    rows.splice(4, 0, ["Branch", user.branch], ["Year", user.year], ["Semester", user.semester]);
+    rows.splice(4, 0, ["Branch", user.branch], ["Year", user.year], ["Semester", user.semester], ["Phone", user.phone_number]);
   }
 
   rows.push(["Registered", formatDate(user.created_at)]);
@@ -354,6 +371,47 @@ function notify(message, type = "") {
   notify.timeout = setTimeout(() => {
     toast.className = "toast";
   }, 3200);
+}
+
+async function requestStudentOtp() {
+  const phone = cleanPhone(document.getElementById("studentPhone").value);
+  if (!validPhone(phone)) {
+    notify("Enter a valid 10 digit mobile number.", "error");
+    return;
+  }
+  const result = await postJson("/api/request-otp", { phone_number: phone });
+  if (!result.ok) {
+    notify(result.message || "Could not generate OTP.", "error");
+    return;
+  }
+  otpStatus.textContent = `Demo OTP: ${result.demo_otp}. Enter it below and verify.`;
+  otpStatus.className = "otp-demo";
+  notify("OTP generated for demo verification.", "success");
+}
+
+async function verifyStudentOtp() {
+  const phone = cleanPhone(document.getElementById("studentPhone").value);
+  const otp = document.getElementById("studentOtp").value.trim();
+  const result = await postJson("/api/verify-otp", { phone_number: phone, otp_code: otp });
+  if (!result.ok) {
+    state.otpVerifiedPhone = "";
+    otpStatus.textContent = result.message || "OTP verification failed.";
+    otpStatus.className = "otp-error";
+    notify(otpStatus.textContent, "error");
+    return;
+  }
+  state.otpVerifiedPhone = phone;
+  otpStatus.textContent = "Phone number verified. You can create the student account.";
+  otpStatus.className = "otp-success";
+  notify("Phone verified successfully.", "success");
+}
+
+function cleanPhone(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function validPhone(phone) {
+  return /^[6-9]\d{9}$/.test(phone);
 }
 
 function readFileAsDataUrl(file) {

@@ -98,7 +98,8 @@ def list_users(_: argparse.Namespace) -> None:
     with connect_db() as db:
         rows = db.execute(
             """
-            SELECT id, role, name, roll_number, faculty_code, course, branch, year, semester, created_at
+            SELECT id, role, name, roll_number, faculty_code, phone_number, phone_verified,
+                   course, branch, year, semester, created_at
             FROM users
             ORDER BY id
             """
@@ -111,7 +112,9 @@ def list_users(_: argparse.Namespace) -> None:
         academic = " ".join(
             value for value in [row["course"], row["branch"], row["year"], row["semester"]] if value
         )
-        print(f"{row['id']} | {row['role']} | {row['name']} | {login_id} | {academic}")
+        phone = row["phone_number"] or "-"
+        verified = "verified" if row["phone_verified"] else "not verified"
+        print(f"{row['id']} | {row['role']} | {row['name']} | {login_id} | {phone} ({verified}) | {academic}")
 
 
 def list_records(_: argparse.Namespace) -> None:
@@ -121,8 +124,9 @@ def list_records(_: argparse.Namespace) -> None:
             """
             SELECT
                 users.roll_number, users.name, users.course, users.branch, users.year,
-                users.semester, academic_records.attendance, academic_records.marks,
-                academic_records.cgpa, academic_records.performance, academic_records.updated_at
+                users.semester, academic_records.attendance, academic_records.internal_marks,
+                academic_records.external_marks, academic_records.marks, academic_records.cgpa,
+                academic_records.performance, academic_records.updated_at
             FROM users
             LEFT JOIN academic_records ON academic_records.student_id = users.id
             WHERE users.role = 'student'
@@ -138,7 +142,8 @@ def list_records(_: argparse.Namespace) -> None:
         )
         print(
             f"{row['roll_number']} | {row['name']} | {academic} | attendance={row['attendance'] or 0} "
-            f"marks={row['marks'] or 0} cgpa={row['cgpa'] or 0} | {row['performance'] or 'Not updated'}"
+            f"internal={row['internal_marks'] or 0} external={row['external_marks'] or 0} "
+            f"total={row['marks'] or 0} cgpa={row['cgpa'] or 0} | {row['performance'] or 'Not updated'}"
         )
 
 

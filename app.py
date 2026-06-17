@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
 DB_PATH = Path(os.environ.get("DATABASE_PATH", ROOT / "annamacharya_portal.sqlite3"))
 SESSION_TTL_DAYS = 7
+OTP_TTL_MINUTES = 10
 DEFAULT_FACULTY_CODES = ("AU-FAC-2026", "AU-STAFF-1001", "AITS-FAC-7788")
 DEFAULT_HOD_CODES = ("AU-HOD-CSE-2026", "AU-HOD-MBA-2026", "AU-HOD-ADMIN-2026")
 
@@ -51,6 +52,8 @@ def init_db() -> None:
                 roll_number TEXT,
                 faculty_code TEXT,
                 hod_code TEXT,
+                phone_number TEXT,
+                phone_verified INTEGER NOT NULL DEFAULT 0,
                 profile_photo TEXT,
                 password_salt TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
@@ -84,6 +87,8 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 attendance REAL DEFAULT 0,
+                internal_marks REAL DEFAULT 0,
+                external_marks REAL DEFAULT 0,
                 marks REAL DEFAULT 0,
                 cgpa REAL DEFAULT 0,
                 performance TEXT DEFAULT 'Not updated',
@@ -101,8 +106,22 @@ def init_db() -> None:
                 updated_at TEXT,
                 UNIQUE(faculty_id)
             );
+
+            CREATE TABLE IF NOT EXISTS otp_verifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                phone_number TEXT NOT NULL,
+                otp_code TEXT NOT NULL,
+                purpose TEXT NOT NULL DEFAULT 'student_registration',
+                verified INTEGER NOT NULL DEFAULT 0,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             """
         )
+        ensure_column(db, "users", "phone_number", "TEXT")
+        ensure_column(db, "users", "phone_verified", "INTEGER NOT NULL DEFAULT 0")
+        ensure_column(db, "academic_records", "internal_marks", "REAL DEFAULT 0")
+        ensure_column(db, "academic_records", "external_marks", "REAL DEFAULT 0")
         for code in DEFAULT_FACULTY_CODES:
             db.execute(
                 """
@@ -145,6 +164,8 @@ def migrate_users_table(db: sqlite3.Connection) -> None:
             roll_number TEXT,
             faculty_code TEXT,
             hod_code TEXT,
+            phone_number TEXT,
+            phone_verified INTEGER NOT NULL DEFAULT 0,
             profile_photo TEXT,
             password_salt TEXT NOT NULL,
             password_hash TEXT NOT NULL,
@@ -155,7 +176,8 @@ def migrate_users_table(db: sqlite3.Connection) -> None:
 
         INSERT OR IGNORE INTO users_new (
             id, role, name, gender, course, branch, year, semester, roll_number,
-            faculty_code, hod_code, profile_photo, password_salt, password_hash, created_at
+            faculty_code, hod_code, phone_number, phone_verified, profile_photo,
+            password_salt, password_hash, created_at
         )
         SELECT
             id,
@@ -169,6 +191,8 @@ def migrate_users_table(db: sqlite3.Connection) -> None:
             roll_number,
             faculty_code,
             NULL,
+            NULL,
+            0,
             profile_photo,
             password_salt,
             password_hash,
@@ -179,6 +203,12 @@ def migrate_users_table(db: sqlite3.Connection) -> None:
         ALTER TABLE users_new RENAME TO users;
         """
     )
+
+
+def ensure_column(db: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in columns:
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
@@ -210,6 +240,8 @@ def public_user(row: sqlite3.Row) -> dict:
         "roll_number": row["roll_number"],
         "faculty_code": row["faculty_code"],
         "hod_code": row["hod_code"],
+        "phone_number": row["phone_number"],
+        "phone_verified": bool(row["phone_verified"]),
         "profile_photo": row["profile_photo"],
         "created_at": row["created_at"],
     }
@@ -239,7 +271,7 @@ def get_session_user(headers) -> dict | None:
         if user["role"] == "student":
             record = db.execute(
                 """
-                SELECT attendance, marks, cgpa, performance, updated_at
+                SELECT attendance, internal_marks, external_marks, marks, cgpa, performance, updated_at
                 FROM academic_records
                 WHERE student_id = ?
                 """,
@@ -247,6 +279,8 @@ def get_session_user(headers) -> dict | None:
             ).fetchone()
             user["academic_record"] = dict(record) if record else {
                 "attendance": 0,
+                "internal_marks": 0,
+                "external_marks": 0,
                 "marks": 0,
                 "cgpa": 0,
                 "performance": "Not updated",
@@ -305,6 +339,10 @@ class PortalHandler(SimpleHTTPRequestHandler):
         try:
             if parsed.path == "/api/register":
                 self.register()
+            elif parsed.path == "/api/request-otp":
+                self.request_otp()
+            elif parsed.path == "/api/verify-otp":
+                self.verify_otp()
             elif parsed.path == "/api/login":
                 self.login()
             elif parsed.path == "/api/logout":
@@ -349,15 +387,20 @@ class PortalHandler(SimpleHTTPRequestHandler):
             raise ValueError("Password must be at least 6 characters.")
 
         course = branch = year = semester = roll_number = faculty_code = hod_code = None
+        phone_number = clean_phone(data.get("phone_number"))
+        phone_verified = 0
         if role == "student":
             course = clean(data.get("course"))
             branch = clean(data.get("branch"))
             year = clean(data.get("year"))
             semester = clean(data.get("semester"))
             roll_number = clean(data.get("roll_number")).upper()
-            required = [course, branch, year, semester, roll_number]
+            required = [course, branch, year, semester, roll_number, phone_number]
             if not all(required):
-                raise ValueError("Student course, branch, year, semester and roll number are required.")
+                raise ValueError("Student course, branch, year, semester, roll number and phone number are required.")
+            if not is_phone_verified(phone_number):
+                raise ValueError("Phone number must be verified with OTP before student registration.")
+            phone_verified = 1
         else:
             faculty_code = clean(data.get("faculty_code")).upper()
             course = clean(data.get("department")) or "Management Staff"
@@ -382,9 +425,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 """
                 INSERT INTO users (
                     role, name, gender, course, branch, year, semester, roll_number, faculty_code,
-                    hod_code, profile_photo, password_salt, password_hash, created_at
+                    hod_code, phone_number, phone_verified, profile_photo, password_salt, password_hash, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     role,
@@ -397,6 +440,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
                     roll_number,
                     faculty_code,
                     hod_code,
+                    phone_number,
+                    phone_verified,
                     profile_photo,
                     salt,
                     password_hash,
@@ -426,6 +471,61 @@ class PortalHandler(SimpleHTTPRequestHandler):
             {"ok": True, "message": "Account created successfully.", "user": public_user(user)},
             cookie=session_cookie(token, expires),
         )
+
+    def request_otp(self) -> None:
+        data = self.read_json()
+        phone_number = clean_phone(data.get("phone_number"))
+        if not valid_phone(phone_number):
+            raise ValueError("Enter a valid 10 digit phone number.")
+        otp_code = f"{secrets.randbelow(1_000_000):06d}"
+        now = utc_now()
+        expires = now + timedelta(minutes=OTP_TTL_MINUTES)
+        with connect_db() as db:
+            db.execute(
+                """
+                INSERT INTO otp_verifications (
+                    phone_number, otp_code, purpose, verified, expires_at, created_at
+                )
+                VALUES (?, ?, 'student_registration', 0, ?, ?)
+                """,
+                (phone_number, otp_code, expires.isoformat(), now.isoformat()),
+            )
+        self.send_json(
+            {
+                "ok": True,
+                "message": "OTP generated. Demo mode shows OTP on screen; connect SMS provider for real sending.",
+                "phone_number": phone_number,
+                "demo_otp": otp_code,
+                "expires_in_minutes": OTP_TTL_MINUTES,
+            }
+        )
+
+    def verify_otp(self) -> None:
+        data = self.read_json()
+        phone_number = clean_phone(data.get("phone_number"))
+        otp_code = clean(data.get("otp_code"))
+        if not valid_phone(phone_number):
+            raise ValueError("Enter a valid 10 digit phone number.")
+        if not otp_code:
+            raise ValueError("Enter OTP.")
+        with connect_db() as db:
+            row = db.execute(
+                """
+                SELECT id, otp_code
+                FROM otp_verifications
+                WHERE phone_number = ?
+                  AND purpose = 'student_registration'
+                  AND verified = 0
+                  AND expires_at > ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (phone_number, utc_now().isoformat()),
+            ).fetchone()
+            if not row or not hmac.compare_digest(row["otp_code"], otp_code):
+                raise ValueError("Invalid or expired OTP.")
+            db.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (row["id"],))
+        self.send_json({"ok": True, "message": "Phone number verified successfully."})
 
     def login(self) -> None:
         data = self.read_json()
@@ -475,6 +575,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
                     users.id, users.name, users.gender, users.course, users.branch, users.year,
                     users.semester, users.roll_number, users.profile_photo,
                     COALESCE(academic_records.attendance, 0) AS attendance,
+                    COALESCE(academic_records.internal_marks, 0) AS internal_marks,
+                    COALESCE(academic_records.external_marks, 0) AS external_marks,
                     COALESCE(academic_records.marks, 0) AS marks,
                     COALESCE(academic_records.cgpa, 0) AS cgpa,
                     COALESCE(academic_records.performance, 'Not updated') AS performance,
@@ -494,7 +596,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
         if not roll_number:
             raise ValueError("Student roll number is required.")
         attendance = parse_score(data.get("attendance"), "Attendance", 0, 100)
-        marks = parse_score(data.get("marks"), "Marks", 0, 100)
+        internal_marks = parse_score(data.get("internal_marks"), "Internal marks", 0, 100)
+        external_marks = parse_score(data.get("external_marks"), "External marks", 0, 100)
+        marks = round((internal_marks + external_marks) / 2, 2)
         cgpa = parse_score(data.get("cgpa"), "CGPA", 0, 10)
         performance = clean(data.get("performance")) or "Not updated"
 
@@ -508,11 +612,13 @@ class PortalHandler(SimpleHTTPRequestHandler):
             db.execute(
                 """
                 INSERT INTO academic_records (
-                    student_id, attendance, marks, cgpa, performance, updated_by, updated_at
+                    student_id, attendance, internal_marks, external_marks, marks, cgpa, performance, updated_by, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(student_id) DO UPDATE SET
                     attendance = excluded.attendance,
+                    internal_marks = excluded.internal_marks,
+                    external_marks = excluded.external_marks,
                     marks = excluded.marks,
                     cgpa = excluded.cgpa,
                     performance = excluded.performance,
@@ -522,6 +628,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 (
                     student["id"],
                     attendance,
+                    internal_marks,
+                    external_marks,
                     marks,
                     cgpa,
                     performance,
@@ -594,6 +702,32 @@ class PortalHandler(SimpleHTTPRequestHandler):
 
 def clean(value) -> str:
     return str(value or "").strip()
+
+
+def clean_phone(value) -> str:
+    return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+
+def valid_phone(phone_number: str) -> bool:
+    return len(phone_number) == 10 and phone_number[0] in "6789"
+
+
+def is_phone_verified(phone_number: str) -> bool:
+    with connect_db() as db:
+        row = db.execute(
+            """
+            SELECT id
+            FROM otp_verifications
+            WHERE phone_number = ?
+              AND purpose = 'student_registration'
+              AND verified = 1
+              AND expires_at > ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (phone_number, utc_now().isoformat()),
+        ).fetchone()
+    return bool(row)
 
 
 def validate_staff_codes(role: str, faculty_code: str, hod_code: str | None) -> None:

@@ -39,8 +39,6 @@
       </button>
       <nav>
         <button data-view="roles">Roles</button>
-        <button data-view="student-register">Student Account</button>
-        <button data-view="staff-register">Faculty/HOD Account</button>
         <button data-view="login">Login</button>
       </nav>
     </header>
@@ -65,8 +63,9 @@
         <div class="campus-panel">
           <img src="/images/a.jpeg" alt="Landscape view of Annamacharya University campus">
           <div>
-            <strong>Role-based authentication</strong>
-            <span>Student, faculty and HOD accounts are separated by backend role checks, so each login opens only its own workspace.</span>
+            <strong>Annamacharya University</strong>
+            <span>Empowering Minds, Shaping Futures</span>
+            <a class="campus-link" href="https://annamacharyauniversity.edu.in/" target="_blank" rel="noreferrer">annamacharyauniversity.edu.in</a>
           </div>
         </div>
       </section>
@@ -100,6 +99,13 @@
             <label>Year<select name="year" required><option value="">Select year</option><option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option><option>Research</option></select></label>
             <label>Semester<select name="semester" required><option value="">Select semester</option><option>Semester 1</option><option>Semester 2</option><option>Semester 3</option><option>Semester 4</option><option>Semester 5</option><option>Semester 6</option><option>Semester 7</option><option>Semester 8</option></select></label>
             <label>Roll Number<input name="roll_number" required placeholder="Example: AU23A0123"></label>
+            <label>Phone Number<input id="studentPhone" name="phone_number" required inputmode="numeric" maxlength="10" placeholder="10 digit mobile number"></label>
+            <div class="otp-panel">
+              <button id="sendOtpBtn" class="ghost-btn" type="button"><span class="material-symbols-outlined">sms</span>Send OTP</button>
+              <label>OTP<input id="studentOtp" name="otp_code" inputmode="numeric" maxlength="6" placeholder="Enter 6 digit OTP"></label>
+              <button id="verifyOtpBtn" class="ghost-btn" type="button"><span class="material-symbols-outlined">verified</span>Verify OTP</button>
+              <p id="otpStatus">Phone verification required for student registration.</p>
+            </div>
             <label>Password<input name="password" required minlength="6" type="password" placeholder="Minimum 6 characters"></label>
             <label>Confirm Password<input name="confirm_password" required minlength="6" type="password" placeholder="Repeat password"></label>
           </div>
@@ -207,7 +213,7 @@
           <div>
             <p class="eyebrow">Faculty Workspace</p>
             <h2 id="facultyName">Faculty Dashboard</h2>
-            <p>Search students by roll number and update attendance, marks, CGPA and performance.</p>
+            <p>Search students by roll number and update attendance, internal marks, external marks, CGPA and performance.</p>
           </div>
           <button class="ghost-btn logout-action"><span class="material-symbols-outlined">logout</span>Logout</button>
         </div>
@@ -217,7 +223,8 @@
             <label>Roll Number<input name="roll_number" required placeholder="Example: AU23A0123"></label>
             <div class="grid two">
               <label>Attendance %<input name="attendance" required type="number" min="0" max="100" step="0.01"></label>
-              <label>Marks<input name="marks" required type="number" min="0" max="100" step="0.01"></label>
+              <label>Internal Marks<input name="internal_marks" required type="number" min="0" max="100" step="0.01"></label>
+              <label>External Marks<input name="external_marks" required type="number" min="0" max="100" step="0.01"></label>
               <label>CGPA<input name="cgpa" required type="number" min="0" max="10" step="0.01"></label>
               <label>Performance<select name="performance" required><option>Excellent</option><option>Good</option><option>Average</option><option>Needs Improvement</option></select></label>
             </div>
@@ -230,7 +237,7 @@
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Roll No</th><th>Name</th><th>Course</th><th>Attendance</th><th>Marks</th><th>CGPA</th><th>Performance</th></tr></thead>
+                <thead><tr><th>Roll No</th><th>Name</th><th>Course</th><th>Attendance</th><th>Internal</th><th>External</th><th>Total</th><th>CGPA</th><th>Performance</th></tr></thead>
                 <tbody id="studentsTable"></tbody>
               </table>
             </div>
@@ -272,7 +279,7 @@
           <h3>Student Academic Overview</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Roll No</th><th>Name</th><th>Course</th><th>Attendance</th><th>Marks</th><th>CGPA</th><th>Performance</th></tr></thead>
+              <thead><tr><th>Roll No</th><th>Name</th><th>Course</th><th>Attendance</th><th>Internal</th><th>External</th><th>Total</th><th>CGPA</th><th>Performance</th></tr></thead>
               <tbody id="hodStudentsTable"></tbody>
             </table>
           </div>
