@@ -94,8 +94,8 @@ Blocked from = /api/faculty, /api/faculty-attendance
 
 An HOD can:
 
-- Register using faculty code + HOD code
-- Login using faculty code and password
+- Register using only a HOD code
+- Login using HOD code and password
 - See HOD dashboard
 - View faculty directory
 - Update faculty attendance
@@ -112,7 +112,7 @@ Backend protection:
 
 ```text
 HOD role = hod
-Login ID = faculty_code
+Login ID = HOD code
 Extra verification at registration = hod_code
 Allowed dashboard = hod-dashboard
 Allowed API = /api/faculty, /api/faculty-attendance, /api/students, /api/student-record
@@ -416,9 +416,10 @@ python3 manage.py add-hod-code AU-HOD-CSE-2026 --label "CSE HOD verification"
 Give to HOD:
 
 ```text
-Faculty Code: AU-CSE-2026
 HOD Code: AU-HOD-CSE-2026
 ```
+
+The HOD enters only the HOD code during registration. Internally, the portal also stores that HOD code as the HOD login ID.
 
 ### List Faculty Codes
 
@@ -575,6 +576,7 @@ Delete user account and ask user to register again
 Use `manage.py` if possible:
 
 ```bash
+python3 manage.py recent-users --limit 20
 python3 manage.py list-users
 python3 manage.py delete-user USER_ID
 ```
@@ -595,6 +597,71 @@ DELETE FROM users WHERE id = 7;
 ```
 
 Always delete dependent records first.
+
+## 12A. Daily Database Command Cheat Sheet
+
+Run these from the project folder:
+
+```bash
+cd /Users/tirumalarajavardhan/Downloads/annamacharya-university-portal
+```
+
+See how many people joined:
+
+```bash
+python3 manage.py stats
+```
+
+See newest registrations first:
+
+```bash
+python3 manage.py recent-users --limit 20
+```
+
+See all users:
+
+```bash
+python3 manage.py list-users
+```
+
+See all student marks, attendance, CGPA, and performance:
+
+```bash
+python3 manage.py list-records
+```
+
+Update one student's academic record by roll number:
+
+```bash
+python3 manage.py update-record 24AFAID153 --attendance 92 --internal 80 --external 88 --cgpa 8.4 --performance "Excellent classroom performance"
+```
+
+Create one faculty registration code:
+
+```bash
+python3 manage.py add-code AU-CSE-FAC-001 --label "CSE Faculty 001"
+```
+
+Create one HOD registration/login code:
+
+```bash
+python3 manage.py add-hod-code AU-HOD-CSE-2026 --label "CSE HOD"
+```
+
+Disable leaked or old codes:
+
+```bash
+python3 manage.py deactivate-code AU-CSE-FAC-001
+python3 manage.py deactivate-hod-code AU-HOD-CSE-2026
+```
+
+Delete a fake/test user:
+
+```bash
+python3 manage.py delete-user 7
+```
+
+DataGrip is best for viewing tables and manually checking rows. `manage.py` is safer for routine actions because it uses the same database rules as the backend.
 
 ## 13. Faculty Updating Student Records
 
@@ -739,6 +806,8 @@ Run:
 
 ```bash
 python3 manage.py init-db
+python3 manage.py stats
+python3 manage.py recent-users --limit 10
 python3 manage.py list-users
 python3 manage.py list-codes
 python3 manage.py list-hod-codes
@@ -873,7 +942,7 @@ Receive faculty code from admin → Register → Login → Update students by ro
 HOD:
 
 ```text
-Receive faculty code + HOD code from admin → Register → Login → Monitor faculty
+Receive HOD code from admin → Register → Login → Monitor faculty
 ```
 
 You:

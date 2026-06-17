@@ -117,6 +117,54 @@ def list_users(_: argparse.Namespace) -> None:
         print(f"{row['id']} | {row['role']} | {row['name']} | {login_id} | {phone} ({verified}) | {academic}")
 
 
+def user_stats(_: argparse.Namespace) -> None:
+    init_db()
+    with connect_db() as db:
+        total = db.execute("SELECT COUNT(*) AS count FROM users").fetchone()["count"]
+        rows = db.execute(
+            """
+            SELECT role, COUNT(*) AS count
+            FROM users
+            GROUP BY role
+            ORDER BY role
+            """
+        ).fetchall()
+    counts = {row["role"]: row["count"] for row in rows}
+    print(f"total | {total}")
+    for role in ["student", "faculty", "hod"]:
+        print(f"{role} | {counts.get(role, 0)}")
+
+
+def recent_users(args: argparse.Namespace) -> None:
+    init_db()
+    limit = max(1, min(args.limit, 100))
+    with connect_db() as db:
+        rows = db.execute(
+            """
+            SELECT id, role, name, roll_number, faculty_code, phone_number,
+                   phone_verified, course, branch, year, semester, created_at
+            FROM users
+            ORDER BY datetime(created_at) DESC, id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    if not rows:
+        print("No registered users yet.")
+        return
+    for row in rows:
+        login_id = row["roll_number"] or row["faculty_code"]
+        academic = " ".join(
+            value for value in [row["course"], row["branch"], row["year"], row["semester"]] if value
+        )
+        phone = row["phone_number"] or "-"
+        verified = "verified" if row["phone_verified"] else "not verified"
+        print(
+            f"{row['id']} | {row['created_at']} | {row['role']} | {row['name']} | "
+            f"{login_id} | {phone} ({verified}) | {academic}"
+        )
+
+
 def list_records(_: argparse.Namespace) -> None:
     init_db()
     with connect_db() as db:
@@ -145,6 +193,50 @@ def list_records(_: argparse.Namespace) -> None:
             f"internal={row['internal_marks'] or 0} external={row['external_marks'] or 0} "
             f"total={row['marks'] or 0} cgpa={row['cgpa'] or 0} | {row['performance'] or 'Not updated'}"
         )
+
+
+def bounded_score(value: float, minimum: float, maximum: float, label: str) -> float:
+    if value < minimum or value > maximum:
+        raise ValueError(f"{label} must be between {minimum:g} and {maximum:g}.")
+    return round(value, 2)
+
+
+def update_record(args: argparse.Namespace) -> None:
+    init_db()
+    roll_number = args.roll_number.strip().upper()
+    attendance = bounded_score(args.attendance, 0, 100, "Attendance")
+    internal_marks = bounded_score(args.internal, 0, 100, "Internal marks")
+    external_marks = bounded_score(args.external, 0, 100, "External marks")
+    cgpa = bounded_score(args.cgpa, 0, 10, "CGPA")
+    marks = round((internal_marks + external_marks) / 2, 2)
+    performance = args.performance.strip() or "Updated by admin"
+    now = utc_now()
+
+    with connect_db() as db:
+        student = db.execute(
+            "SELECT id, name FROM users WHERE role = 'student' AND roll_number = ?",
+            (roll_number,),
+        ).fetchone()
+        if not student:
+            print(f"No student found with roll number: {roll_number}")
+            return
+        db.execute(
+            """
+            INSERT INTO academic_records
+                (student_id, attendance, internal_marks, external_marks, marks, cgpa, performance, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(student_id) DO UPDATE SET
+                attendance = excluded.attendance,
+                internal_marks = excluded.internal_marks,
+                external_marks = excluded.external_marks,
+                marks = excluded.marks,
+                cgpa = excluded.cgpa,
+                performance = excluded.performance,
+                updated_at = excluded.updated_at
+            """,
+            (student["id"], attendance, internal_marks, external_marks, marks, cgpa, performance, now),
+        )
+    print(f"Updated academic record for {student['name']} ({roll_number}).")
 
 
 def delete_user(args: argparse.Namespace) -> None:
@@ -201,8 +293,24 @@ def build_parser() -> argparse.ArgumentParser:
     users = sub.add_parser("list-users", help="Show registered users.")
     users.set_defaults(func=list_users)
 
+    stats = sub.add_parser("stats", help="Show total users and counts by role.")
+    stats.set_defaults(func=user_stats)
+
+    recent = sub.add_parser("recent-users", help="Show latest registered users.")
+    recent.add_argument("--limit", type=int, default=10, help="How many latest users to show. Maximum 100.")
+    recent.set_defaults(func=recent_users)
+
     records = sub.add_parser("list-records", help="Show student academic records.")
     records.set_defaults(func=list_records)
+
+    update = sub.add_parser("update-record", help="Update a student's academic record by roll number.")
+    update.add_argument("roll_number")
+    update.add_argument("--attendance", type=float, required=True)
+    update.add_argument("--internal", type=float, required=True)
+    update.add_argument("--external", type=float, required=True)
+    update.add_argument("--cgpa", type=float, required=True)
+    update.add_argument("--performance", default="Good")
+    update.set_defaults(func=update_record)
 
     delete = sub.add_parser("delete-user", help="Delete a registered user by id.")
     delete.add_argument("user_id", type=int)
@@ -219,6 +327,8 @@ def main() -> None:
     args = parser.parse_args()
     try:
         args.func(args)
+    except ValueError as exc:
+        parser.exit(1, f"Input error: {exc}\n")
     except sqlite3.Error as exc:
         parser.exit(1, f"Database error: {exc}\n")
 

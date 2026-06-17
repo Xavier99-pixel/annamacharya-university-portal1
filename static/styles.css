@@ -530,6 +530,15 @@ select:focus {
   min-height: 18px;
 }
 
+.disabled-field {
+  opacity: 0.56;
+}
+
+.disabled-field input {
+  background: var(--surface-2);
+  cursor: not-allowed;
+}
+
 .segmented label {
   display: block;
   color: var(--muted);

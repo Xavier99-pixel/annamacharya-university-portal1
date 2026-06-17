@@ -61,6 +61,8 @@ Create a new HOD code:
 python3 manage.py add-hod-code AU-HOD-CSE-2026 --label "CSE HOD verification"
 ```
 
+HOD registration uses only the HOD code. The HOD also logs in with that HOD code as the ID number.
+
 Show all HOD codes:
 
 ```bash
@@ -79,10 +81,28 @@ Show registered users:
 python3 manage.py list-users
 ```
 
+Show total users and counts by role:
+
+```bash
+python3 manage.py stats
+```
+
+Show latest registered users:
+
+```bash
+python3 manage.py recent-users --limit 20
+```
+
 Show student academic records:
 
 ```bash
 python3 manage.py list-records
+```
+
+Update one student's record by roll number:
+
+```bash
+python3 manage.py update-record 24AFAID153 --attendance 92 --internal 80 --external 88 --cgpa 8.4 --performance "Excellent classroom performance"
 ```
 
 Show database tables:

@@ -120,7 +120,7 @@
         <aside>
           <img src="/images/au3.jpeg" alt="Annamacharya University academic building">
           <h2>Faculty & HOD Verification</h2>
-          <p>Faculty registration requires a faculty code. HOD registration requires both faculty code and HOD verification code.</p>
+          <p>Faculty registration requires a faculty code. HOD registration uses only a HOD verification code.</p>
           <ol>
             <li><span>1</span> Staff identity</li>
             <li><span>2</span> Faculty/HOD code check</li>
@@ -141,7 +141,7 @@
             <label>Full Name<input name="name" required placeholder="Enter full name"></label>
             <label>Gender<select name="gender" required><option value="">Select</option><option>Female</option><option>Male</option><option>Other</option></select></label>
             <label>Department<input name="department" required placeholder="Example: CSE Department"></label>
-            <label>Faculty Code<input name="faculty_code" required placeholder="Example: AU-FAC-2026"></label>
+            <label id="facultyCodeField">Faculty Code<input name="faculty_code" required placeholder="Example: AU-FAC-2026"></label>
             <label class="check-row"><input id="isHod" name="is_hod" type="checkbox"><span>Register as HOD (Head of Department)</span></label>
             <label id="hodCodeField" class="is-hidden">HOD Code<input name="hod_code" placeholder="Example: AU-HOD-CSE-2026"></label>
             <label>Password<input name="password" required minlength="6" type="password" placeholder="Minimum 6 characters"></label>

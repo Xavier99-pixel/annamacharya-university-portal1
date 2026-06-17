@@ -14,6 +14,7 @@ const toast = document.getElementById("toast");
 const splash = document.getElementById("splash");
 const app = document.getElementById("app");
 const isHod = document.getElementById("isHod");
+const facultyCodeField = document.getElementById("facultyCodeField");
 const hodCodeField = document.getElementById("hodCodeField");
 const sendOtpBtn = document.getElementById("sendOtpBtn");
 const verifyOtpBtn = document.getElementById("verifyOtpBtn");
@@ -44,9 +45,9 @@ sendOtpBtn.addEventListener("click", requestStudentOtp);
 verifyOtpBtn.addEventListener("click", verifyStudentOtp);
 
 isHod.addEventListener("change", () => {
-  hodCodeField.classList.toggle("is-hidden", !isHod.checked);
-  hodCodeField.querySelector("input").required = isHod.checked;
+  syncHodRegistrationFields();
 });
+syncHodRegistrationFields();
 
 document.querySelectorAll("[data-photo]").forEach((input) => {
   input.addEventListener("change", async () => {
@@ -111,7 +112,7 @@ document.getElementById("staffForm").addEventListener("submit", async (event) =>
     name: data.name,
     gender: data.gender,
     department: data.department,
-    faculty_code: data.faculty_code,
+    faculty_code: data.is_hod === "on" ? "" : data.faculty_code,
     hod_code: data.hod_code,
     password: data.password,
     profile_photo: state.photos.staff,
@@ -207,9 +208,29 @@ async function handleAuthResult(result, form) {
   state.photos.student = "";
   state.photos.staff = "";
   isHod.checked = false;
-  hodCodeField.classList.add("is-hidden");
+  syncHodRegistrationFields();
   notify(result.message || "Success.", "success");
   await renderWorkspace(result.user);
+}
+
+function syncHodRegistrationFields() {
+  const facultyInput = facultyCodeField.querySelector("input");
+  const hodInput = hodCodeField.querySelector("input");
+  const hodMode = isHod.checked;
+
+  hodCodeField.classList.toggle("is-hidden", !hodMode);
+  facultyCodeField.classList.toggle("disabled-field", hodMode);
+  facultyInput.required = !hodMode;
+  facultyInput.disabled = hodMode;
+  hodInput.required = hodMode;
+
+  if (hodMode) {
+    facultyInput.value = "";
+    hodInput.placeholder = "HOD login code, e.g. AU-HOD-CSE-2026";
+  } else {
+    hodInput.value = "";
+    hodInput.placeholder = "Example: AU-HOD-CSE-2026";
+  }
 }
 
 async function renderWorkspace(user) {

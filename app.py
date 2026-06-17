@@ -402,15 +402,18 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 raise ValueError("Phone number must be verified with OTP before student registration.")
             phone_verified = 1
         else:
-            faculty_code = clean(data.get("faculty_code")).upper()
             course = clean(data.get("department")) or "Management Staff"
-            if not faculty_code:
-                raise ValueError("Faculty code is required.")
             if role == "hod":
                 hod_code = clean(data.get("hod_code")).upper()
                 if not hod_code:
                     raise ValueError("HOD verification code is required.")
-            validate_staff_codes(role, faculty_code, hod_code)
+                faculty_code = hod_code
+                validate_staff_codes(role, None, hod_code)
+            else:
+                faculty_code = clean(data.get("faculty_code")).upper()
+                if not faculty_code:
+                    raise ValueError("Faculty code is required.")
+                validate_staff_codes(role, faculty_code, None)
 
         profile_photo = str(data.get("profile_photo") or "")
         if profile_photo and not profile_photo.startswith("data:image/"):
@@ -730,14 +733,8 @@ def is_phone_verified(phone_number: str) -> bool:
     return bool(row)
 
 
-def validate_staff_codes(role: str, faculty_code: str, hod_code: str | None) -> None:
+def validate_staff_codes(role: str, faculty_code: str | None, hod_code: str | None) -> None:
     with connect_db() as db:
-        valid_code = db.execute(
-            "SELECT code FROM faculty_codes WHERE code = ? AND active = 1",
-            (faculty_code,),
-        ).fetchone()
-        if not valid_code:
-            raise ValueError("Invalid university faculty code.")
         if role == "hod":
             valid_hod_code = db.execute(
                 "SELECT code FROM hod_codes WHERE code = ? AND active = 1",
@@ -745,6 +742,13 @@ def validate_staff_codes(role: str, faculty_code: str, hod_code: str | None) -> 
             ).fetchone()
             if not valid_hod_code:
                 raise ValueError("Invalid HOD verification code.")
+            return
+        valid_code = db.execute(
+            "SELECT code FROM faculty_codes WHERE code = ? AND active = 1",
+            (faculty_code,),
+        ).fetchone()
+        if not valid_code:
+            raise ValueError("Invalid university faculty code.")
 
 
 def parse_score(value, label: str, minimum: float, maximum: float) -> float:
