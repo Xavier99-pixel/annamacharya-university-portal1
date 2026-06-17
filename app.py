@@ -20,6 +20,7 @@ STATIC_DIR = ROOT / "static"
 DB_PATH = Path(os.environ.get("DATABASE_PATH", ROOT / "annamacharya_portal.sqlite3"))
 SESSION_TTL_DAYS = 7
 DEFAULT_FACULTY_CODES = ("AU-FAC-2026", "AU-STAFF-1001", "AITS-FAC-7788")
+DEFAULT_HOD_CODES = ("AU-HOD-CSE-2026", "AU-HOD-MBA-2026", "AU-HOD-ADMIN-2026")
 
 
 def utc_now() -> datetime:
@@ -35,18 +36,21 @@ def connect_db() -> sqlite3.Connection:
 
 def init_db() -> None:
     with connect_db() as db:
+        migrate_users_table(db)
         db.executescript(
             """
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                role TEXT NOT NULL CHECK(role IN ('student', 'staff')),
+                role TEXT NOT NULL CHECK(role IN ('student', 'faculty', 'hod')),
                 name TEXT NOT NULL,
                 gender TEXT NOT NULL,
                 course TEXT,
+                branch TEXT,
                 year TEXT,
                 semester TEXT,
                 roll_number TEXT,
                 faculty_code TEXT,
+                hod_code TEXT,
                 profile_photo TEXT,
                 password_salt TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
@@ -68,6 +72,35 @@ def init_db() -> None:
                 active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS hod_codes (
+                code TEXT PRIMARY KEY,
+                label TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS academic_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                attendance REAL DEFAULT 0,
+                marks REAL DEFAULT 0,
+                cgpa REAL DEFAULT 0,
+                performance TEXT DEFAULT 'Not updated',
+                updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                updated_at TEXT,
+                UNIQUE(student_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS faculty_attendance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                faculty_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                attendance REAL DEFAULT 0,
+                performance TEXT DEFAULT 'Not updated',
+                updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                updated_at TEXT,
+                UNIQUE(faculty_id)
+            );
             """
         )
         for code in DEFAULT_FACULTY_CODES:
@@ -78,6 +111,74 @@ def init_db() -> None:
                 """,
                 (code, "Demo university faculty code", utc_now().isoformat()),
             )
+        for code in DEFAULT_HOD_CODES:
+            db.execute(
+                """
+                INSERT OR IGNORE INTO hod_codes (code, label, active, created_at)
+                VALUES (?, ?, 1, ?)
+                """,
+                (code, "Demo HOD verification code", utc_now().isoformat()),
+            )
+
+
+def migrate_users_table(db: sqlite3.Connection) -> None:
+    row = db.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'"
+    ).fetchone()
+    if not row:
+        return
+    sql = row["sql"] or ""
+    if "'faculty'" in sql and "branch TEXT" in sql and "hod_code TEXT" in sql:
+        return
+
+    db.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS users_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            role TEXT NOT NULL CHECK(role IN ('student', 'faculty', 'hod')),
+            name TEXT NOT NULL,
+            gender TEXT NOT NULL,
+            course TEXT,
+            branch TEXT,
+            year TEXT,
+            semester TEXT,
+            roll_number TEXT,
+            faculty_code TEXT,
+            hod_code TEXT,
+            profile_photo TEXT,
+            password_salt TEXT NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(role, roll_number),
+            UNIQUE(role, faculty_code)
+        );
+
+        INSERT OR IGNORE INTO users_new (
+            id, role, name, gender, course, branch, year, semester, roll_number,
+            faculty_code, hod_code, profile_photo, password_salt, password_hash, created_at
+        )
+        SELECT
+            id,
+            CASE WHEN role = 'staff' THEN 'faculty' ELSE role END,
+            name,
+            gender,
+            course,
+            NULL,
+            year,
+            semester,
+            roll_number,
+            faculty_code,
+            NULL,
+            profile_photo,
+            password_salt,
+            password_hash,
+            created_at
+        FROM users;
+
+        DROP TABLE users;
+        ALTER TABLE users_new RENAME TO users;
+        """
+    )
 
 
 def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
@@ -103,10 +204,12 @@ def public_user(row: sqlite3.Row) -> dict:
         "name": row["name"],
         "gender": row["gender"],
         "course": row["course"],
+        "branch": row["branch"],
         "year": row["year"],
         "semester": row["semester"],
         "roll_number": row["roll_number"],
         "faculty_code": row["faculty_code"],
+        "hod_code": row["hod_code"],
         "profile_photo": row["profile_photo"],
         "created_at": row["created_at"],
     }
@@ -130,7 +233,26 @@ def get_session_user(headers) -> dict | None:
             """,
             (token, utc_now().isoformat()),
         ).fetchone()
-    return public_user(row) if row else None
+        if not row:
+            return None
+        user = public_user(row)
+        if user["role"] == "student":
+            record = db.execute(
+                """
+                SELECT attendance, marks, cgpa, performance, updated_at
+                FROM academic_records
+                WHERE student_id = ?
+                """,
+                (user["id"],),
+            ).fetchone()
+            user["academic_record"] = dict(record) if record else {
+                "attendance": 0,
+                "marks": 0,
+                "cgpa": 0,
+                "performance": "Not updated",
+                "updated_at": None,
+            }
+    return user
 
 
 class PortalHandler(SimpleHTTPRequestHandler):
@@ -141,26 +263,42 @@ class PortalHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path == "/healthz":
-            self.send_json({"ok": True})
-            return
-        if parsed.path == "/api/me":
-            user = get_session_user(self.headers)
-            self.send_json({"authenticated": bool(user), "user": user})
-            return
-        if parsed.path == "/api/faculty-codes":
-            with connect_db() as db:
-                rows = db.execute(
-                    "SELECT code, label FROM faculty_codes WHERE active = 1 ORDER BY code"
-                ).fetchall()
-            self.send_json({"codes": [dict(row) for row in rows]})
-            return
-        if parsed.path.startswith("/api/"):
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
-        if parsed.path == "/":
-            self.path = "/index.html"
-        return super().do_GET()
+        try:
+            if parsed.path == "/healthz":
+                self.send_json({"ok": True})
+                return
+            if parsed.path == "/api/me":
+                user = get_session_user(self.headers)
+                self.send_json({"authenticated": bool(user), "user": user})
+                return
+            if parsed.path == "/api/faculty-codes":
+                with connect_db() as db:
+                    rows = db.execute(
+                        "SELECT code, label FROM faculty_codes WHERE active = 1 ORDER BY code"
+                    ).fetchall()
+                self.send_json({"codes": [dict(row) for row in rows]})
+                return
+            if parsed.path == "/api/hod-codes":
+                with connect_db() as db:
+                    rows = db.execute(
+                        "SELECT code, label FROM hod_codes WHERE active = 1 ORDER BY code"
+                    ).fetchall()
+                self.send_json({"codes": [dict(row) for row in rows]})
+                return
+            if parsed.path == "/api/students":
+                self.students()
+                return
+            if parsed.path == "/api/faculty":
+                self.faculty()
+                return
+            if parsed.path.startswith("/api/"):
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            if parsed.path == "/":
+                self.path = "/index.html"
+            return super().do_GET()
+        except ValueError as exc:
+            self.send_json({"ok": False, "message": str(exc)}, HTTPStatus.FORBIDDEN)
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
@@ -171,6 +309,10 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 self.login()
             elif parsed.path == "/api/logout":
                 self.logout()
+            elif parsed.path == "/api/student-record":
+                self.update_student_record()
+            elif parsed.path == "/api/faculty-attendance":
+                self.update_faculty_attendance()
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
         except ValueError as exc:
@@ -197,32 +339,35 @@ class PortalHandler(SimpleHTTPRequestHandler):
         gender = clean(data.get("gender"))
         password = str(data.get("password") or "")
 
-        if role not in {"student", "staff"}:
-            raise ValueError("Choose Student or Staff registration.")
+        if role == "staff":
+            role = "hod" if bool(data.get("is_hod")) else "faculty"
+        if role not in {"student", "faculty", "hod"}:
+            raise ValueError("Choose Student, Faculty or HOD registration.")
         if not name or not gender:
             raise ValueError("Name and gender are required.")
         if len(password) < 6:
             raise ValueError("Password must be at least 6 characters.")
 
-        course = year = semester = roll_number = faculty_code = None
+        course = branch = year = semester = roll_number = faculty_code = hod_code = None
         if role == "student":
             course = clean(data.get("course"))
+            branch = clean(data.get("branch"))
             year = clean(data.get("year"))
             semester = clean(data.get("semester"))
             roll_number = clean(data.get("roll_number")).upper()
-            required = [course, year, semester, roll_number]
+            required = [course, branch, year, semester, roll_number]
             if not all(required):
-                raise ValueError("Student course, year, semester and roll number are required.")
+                raise ValueError("Student course, branch, year, semester and roll number are required.")
         else:
             faculty_code = clean(data.get("faculty_code")).upper()
             course = clean(data.get("department")) or "Management Staff"
-            with connect_db() as db:
-                valid_code = db.execute(
-                    "SELECT code FROM faculty_codes WHERE code = ? AND active = 1",
-                    (faculty_code,),
-                ).fetchone()
-            if not valid_code:
-                raise ValueError("Invalid university faculty code.")
+            if not faculty_code:
+                raise ValueError("Faculty code is required.")
+            if role == "hod":
+                hod_code = clean(data.get("hod_code")).upper()
+                if not hod_code:
+                    raise ValueError("HOD verification code is required.")
+            validate_staff_codes(role, faculty_code, hod_code)
 
         profile_photo = str(data.get("profile_photo") or "")
         if profile_photo and not profile_photo.startswith("data:image/"):
@@ -236,20 +381,22 @@ class PortalHandler(SimpleHTTPRequestHandler):
             cursor = db.execute(
                 """
                 INSERT INTO users (
-                    role, name, gender, course, year, semester, roll_number, faculty_code,
-                    profile_photo, password_salt, password_hash, created_at
+                    role, name, gender, course, branch, year, semester, roll_number, faculty_code,
+                    hod_code, profile_photo, password_salt, password_hash, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     role,
                     name,
                     gender,
                     course,
+                    branch,
                     year,
                     semester,
                     roll_number,
                     faculty_code,
+                    hod_code,
                     profile_photo,
                     salt,
                     password_hash,
@@ -257,6 +404,22 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 ),
             )
             user = db.execute("SELECT * FROM users WHERE id = ?", (cursor.lastrowid,)).fetchone()
+            if role == "student":
+                db.execute(
+                    """
+                    INSERT OR IGNORE INTO academic_records (student_id, updated_at)
+                    VALUES (?, ?)
+                    """,
+                    (user["id"], created_at),
+                )
+            if role in {"faculty", "hod"}:
+                db.execute(
+                    """
+                    INSERT OR IGNORE INTO faculty_attendance (faculty_id, updated_at)
+                    VALUES (?, ?)
+                    """,
+                    (user["id"], created_at),
+                )
             token, expires = create_session(db, user["id"])
 
         self.send_json(
@@ -270,7 +433,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
         identifier = clean(data.get("identifier")).upper()
         password = str(data.get("password") or "")
 
-        if role not in {"student", "staff"}:
+        if role == "staff":
+            role = "faculty"
+        if role not in {"student", "faculty", "hod"}:
             raise ValueError("Choose a login role.")
         if not identifier or not password:
             raise ValueError("Enter your ID and password.")
@@ -301,6 +466,121 @@ class PortalHandler(SimpleHTTPRequestHandler):
             cookie="au_session=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly",
         )
 
+    def students(self) -> None:
+        user = require_user(self.headers, {"faculty", "hod"})
+        with connect_db() as db:
+            rows = db.execute(
+                """
+                SELECT
+                    users.id, users.name, users.gender, users.course, users.branch, users.year,
+                    users.semester, users.roll_number, users.profile_photo,
+                    COALESCE(academic_records.attendance, 0) AS attendance,
+                    COALESCE(academic_records.marks, 0) AS marks,
+                    COALESCE(academic_records.cgpa, 0) AS cgpa,
+                    COALESCE(academic_records.performance, 'Not updated') AS performance,
+                    academic_records.updated_at
+                FROM users
+                LEFT JOIN academic_records ON academic_records.student_id = users.id
+                WHERE users.role = 'student'
+                ORDER BY users.course, users.branch, users.year, users.semester, users.roll_number
+                """
+            ).fetchall()
+        self.send_json({"ok": True, "viewer": user, "students": [dict(row) for row in rows]})
+
+    def update_student_record(self) -> None:
+        user = require_user(self.headers, {"faculty", "hod"})
+        data = self.read_json()
+        roll_number = clean(data.get("roll_number")).upper()
+        if not roll_number:
+            raise ValueError("Student roll number is required.")
+        attendance = parse_score(data.get("attendance"), "Attendance", 0, 100)
+        marks = parse_score(data.get("marks"), "Marks", 0, 100)
+        cgpa = parse_score(data.get("cgpa"), "CGPA", 0, 10)
+        performance = clean(data.get("performance")) or "Not updated"
+
+        with connect_db() as db:
+            student = db.execute(
+                "SELECT id FROM users WHERE role = 'student' AND roll_number = ?",
+                (roll_number,),
+            ).fetchone()
+            if not student:
+                raise ValueError("No student found for that roll number.")
+            db.execute(
+                """
+                INSERT INTO academic_records (
+                    student_id, attendance, marks, cgpa, performance, updated_by, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(student_id) DO UPDATE SET
+                    attendance = excluded.attendance,
+                    marks = excluded.marks,
+                    cgpa = excluded.cgpa,
+                    performance = excluded.performance,
+                    updated_by = excluded.updated_by,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    student["id"],
+                    attendance,
+                    marks,
+                    cgpa,
+                    performance,
+                    user["id"],
+                    utc_now().isoformat(),
+                ),
+            )
+        self.send_json({"ok": True, "message": "Student academic record updated."})
+
+    def faculty(self) -> None:
+        user = require_user(self.headers, {"hod"})
+        with connect_db() as db:
+            rows = db.execute(
+                """
+                SELECT
+                    users.id, users.name, users.gender, users.course, users.faculty_code,
+                    users.profile_photo, users.created_at,
+                    COALESCE(faculty_attendance.attendance, 0) AS attendance,
+                    COALESCE(faculty_attendance.performance, 'Not updated') AS performance,
+                    faculty_attendance.updated_at
+                FROM users
+                LEFT JOIN faculty_attendance ON faculty_attendance.faculty_id = users.id
+                WHERE users.role IN ('faculty', 'hod')
+                ORDER BY users.course, users.name
+                """
+            ).fetchall()
+        self.send_json({"ok": True, "viewer": user, "faculty": [dict(row) for row in rows]})
+
+    def update_faculty_attendance(self) -> None:
+        user = require_user(self.headers, {"hod"})
+        data = self.read_json()
+        faculty_code = clean(data.get("faculty_code")).upper()
+        if not faculty_code:
+            raise ValueError("Faculty code is required.")
+        attendance = parse_score(data.get("attendance"), "Attendance", 0, 100)
+        performance = clean(data.get("performance")) or "Not updated"
+        with connect_db() as db:
+            faculty = db.execute(
+                "SELECT id FROM users WHERE role IN ('faculty', 'hod') AND faculty_code = ?",
+                (faculty_code,),
+            ).fetchone()
+            if not faculty:
+                raise ValueError("No faculty member found for that faculty code.")
+            db.execute(
+                """
+                INSERT INTO faculty_attendance (
+                    faculty_id, attendance, performance, updated_by, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(faculty_id) DO UPDATE SET
+                    attendance = excluded.attendance,
+                    performance = excluded.performance,
+                    updated_by = excluded.updated_by,
+                    updated_at = excluded.updated_at
+                """,
+                (faculty["id"], attendance, performance, user["id"], utc_now().isoformat()),
+            )
+        self.send_json({"ok": True, "message": "Faculty attendance updated."})
+
     def send_json(self, payload: dict, status: int = HTTPStatus.OK, cookie: str | None = None) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
@@ -314,6 +594,42 @@ class PortalHandler(SimpleHTTPRequestHandler):
 
 def clean(value) -> str:
     return str(value or "").strip()
+
+
+def validate_staff_codes(role: str, faculty_code: str, hod_code: str | None) -> None:
+    with connect_db() as db:
+        valid_code = db.execute(
+            "SELECT code FROM faculty_codes WHERE code = ? AND active = 1",
+            (faculty_code,),
+        ).fetchone()
+        if not valid_code:
+            raise ValueError("Invalid university faculty code.")
+        if role == "hod":
+            valid_hod_code = db.execute(
+                "SELECT code FROM hod_codes WHERE code = ? AND active = 1",
+                (hod_code,),
+            ).fetchone()
+            if not valid_hod_code:
+                raise ValueError("Invalid HOD verification code.")
+
+
+def parse_score(value, label: str, minimum: float, maximum: float) -> float:
+    try:
+        score = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} must be a number.") from exc
+    if score < minimum or score > maximum:
+        raise ValueError(f"{label} must be between {minimum:g} and {maximum:g}.")
+    return score
+
+
+def require_user(headers, allowed_roles: set[str]) -> dict:
+    user = get_session_user(headers)
+    if not user:
+        raise ValueError("Login is required.")
+    if user["role"] not in allowed_roles:
+        raise ValueError("You do not have permission to access this workspace.")
+    return user
 
 
 def create_session(db: sqlite3.Connection, user_id: int) -> tuple[str, datetime]:

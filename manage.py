@@ -27,6 +27,22 @@ def add_code(args: argparse.Namespace) -> None:
     print(f"Faculty code active: {code}")
 
 
+def add_hod_code(args: argparse.Namespace) -> None:
+    init_db()
+    code = args.code.strip().upper()
+    label = args.label.strip()
+    with connect_db() as db:
+        db.execute(
+            """
+            INSERT INTO hod_codes (code, label, active, created_at)
+            VALUES (?, ?, 1, ?)
+            ON CONFLICT(code) DO UPDATE SET label = excluded.label, active = 1
+            """,
+            (code, label, utc_now()),
+        )
+    print(f"HOD code active: {code}")
+
+
 def list_codes(_: argparse.Namespace) -> None:
     init_db()
     with connect_db() as db:
@@ -35,6 +51,20 @@ def list_codes(_: argparse.Namespace) -> None:
         ).fetchall()
     if not rows:
         print("No faculty codes found.")
+        return
+    for row in rows:
+        status = "active" if row["active"] else "inactive"
+        print(f"{row['code']} | {status} | {row['label']}")
+
+
+def list_hod_codes(_: argparse.Namespace) -> None:
+    init_db()
+    with connect_db() as db:
+        rows = db.execute(
+            "SELECT code, label, active, created_at FROM hod_codes ORDER BY code"
+        ).fetchall()
+    if not rows:
+        print("No HOD codes found.")
         return
     for row in rows:
         status = "active" if row["active"] else "inactive"
@@ -52,12 +82,23 @@ def deactivate_code(args: argparse.Namespace) -> None:
         print(f"Faculty code not found: {code}")
 
 
+def deactivate_hod_code(args: argparse.Namespace) -> None:
+    init_db()
+    code = args.code.strip().upper()
+    with connect_db() as db:
+        cursor = db.execute("UPDATE hod_codes SET active = 0 WHERE code = ?", (code,))
+    if cursor.rowcount:
+        print(f"HOD code deactivated: {code}")
+    else:
+        print(f"HOD code not found: {code}")
+
+
 def list_users(_: argparse.Namespace) -> None:
     init_db()
     with connect_db() as db:
         rows = db.execute(
             """
-            SELECT id, role, name, roll_number, faculty_code, course, created_at
+            SELECT id, role, name, roll_number, faculty_code, course, branch, year, semester, created_at
             FROM users
             ORDER BY id
             """
@@ -67,7 +108,38 @@ def list_users(_: argparse.Namespace) -> None:
         return
     for row in rows:
         login_id = row["roll_number"] or row["faculty_code"]
-        print(f"{row['id']} | {row['role']} | {row['name']} | {login_id} | {row['course']}")
+        academic = " ".join(
+            value for value in [row["course"], row["branch"], row["year"], row["semester"]] if value
+        )
+        print(f"{row['id']} | {row['role']} | {row['name']} | {login_id} | {academic}")
+
+
+def list_records(_: argparse.Namespace) -> None:
+    init_db()
+    with connect_db() as db:
+        rows = db.execute(
+            """
+            SELECT
+                users.roll_number, users.name, users.course, users.branch, users.year,
+                users.semester, academic_records.attendance, academic_records.marks,
+                academic_records.cgpa, academic_records.performance, academic_records.updated_at
+            FROM users
+            LEFT JOIN academic_records ON academic_records.student_id = users.id
+            WHERE users.role = 'student'
+            ORDER BY users.roll_number
+            """
+        ).fetchall()
+    if not rows:
+        print("No student records found.")
+        return
+    for row in rows:
+        academic = " ".join(
+            value for value in [row["course"], row["branch"], row["year"], row["semester"]] if value
+        )
+        print(
+            f"{row['roll_number']} | {row['name']} | {academic} | attendance={row['attendance'] or 0} "
+            f"marks={row['marks'] or 0} cgpa={row['cgpa'] or 0} | {row['performance'] or 'Not updated'}"
+        )
 
 
 def delete_user(args: argparse.Namespace) -> None:
@@ -100,17 +172,32 @@ def build_parser() -> argparse.ArgumentParser:
     codes = sub.add_parser("list-codes", help="Show faculty codes.")
     codes.set_defaults(func=list_codes)
 
+    hod_codes = sub.add_parser("list-hod-codes", help="Show HOD verification codes.")
+    hod_codes.set_defaults(func=list_hod_codes)
+
     add = sub.add_parser("add-code", help="Create or reactivate a faculty code.")
     add.add_argument("code", help="Example: AU-CSE-2026")
     add.add_argument("--label", default="University faculty code", help="Small note for this code.")
     add.set_defaults(func=add_code)
 
+    add_hod = sub.add_parser("add-hod-code", help="Create or reactivate a HOD code.")
+    add_hod.add_argument("code", help="Example: AU-HOD-CSE-2026")
+    add_hod.add_argument("--label", default="University HOD code", help="Small note for this code.")
+    add_hod.set_defaults(func=add_hod_code)
+
     deactivate = sub.add_parser("deactivate-code", help="Disable a faculty code.")
     deactivate.add_argument("code")
     deactivate.set_defaults(func=deactivate_code)
 
+    deactivate_hod = sub.add_parser("deactivate-hod-code", help="Disable a HOD code.")
+    deactivate_hod.add_argument("code")
+    deactivate_hod.set_defaults(func=deactivate_hod_code)
+
     users = sub.add_parser("list-users", help="Show registered users.")
     users.set_defaults(func=list_users)
+
+    records = sub.add_parser("list-records", help="Show student academic records.")
+    records.set_defaults(func=list_records)
 
     delete = sub.add_parser("delete-user", help="Delete a registered user by id.")
     delete.add_argument("user_id", type=int)

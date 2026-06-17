@@ -1,6 +1,6 @@
 # Annamacharya University Portal
 
-Student and staff login hub with local Python, SQLite authentication, profile photos, role-based registration, and database-managed faculty codes.
+Student, faculty, and HOD login hub with local Python, SQLite authentication, profile photos, role-based dashboards, database-managed verification codes, and academic record management.
 
 ## Run Locally
 
@@ -17,9 +17,12 @@ The frontend calls backend API URLs such as `/api/register` and `/api/login`.
 
 `app.py` receives those requests, opens `annamacharya_portal.sqlite3` with Python's built-in `sqlite3` module, then inserts or reads rows from these tables:
 
-- `users`: student and staff accounts
+- `users`: student, faculty, and HOD accounts
 - `sessions`: browser login sessions
 - `faculty_codes`: allowed staff registration codes
+- `hod_codes`: allowed HOD verification codes
+- `academic_records`: student attendance, marks, CGPA, and performance
+- `faculty_attendance`: faculty attendance and performance managed by HOD
 
 You do not manually connect the frontend to SQLite. The browser talks to Python; Python talks to SQLite.
 
@@ -43,6 +46,18 @@ Show all faculty codes:
 python3 manage.py list-codes
 ```
 
+Create a new HOD code:
+
+```bash
+python3 manage.py add-hod-code AU-HOD-CSE-2026 --label "CSE HOD verification"
+```
+
+Show all HOD codes:
+
+```bash
+python3 manage.py list-hod-codes
+```
+
 Disable a faculty code:
 
 ```bash
@@ -53,6 +68,12 @@ Show registered users:
 
 ```bash
 python3 manage.py list-users
+```
+
+Show student academic records:
+
+```bash
+python3 manage.py list-records
 ```
 
 Show database tables:

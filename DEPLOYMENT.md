@@ -4,6 +4,7 @@ This project has two parts:
 
 - Frontend: `static/index.html`, `static/styles.css`, `static/app.js`, images
 - Backend/database: `app.py` plus SQLite database file
+- Workspaces: student dashboard, faculty workspace, and HOD workspace
 
 The frontend does not connect directly to SQLite. The flow is:
 
@@ -49,7 +50,7 @@ That command is only for Render after you add a persistent disk mounted at `/var
 
 `users`
 
-Stores student and staff accounts. Student accounts use `roll_number`; staff accounts use `faculty_code`.
+Stores student, faculty, and HOD accounts. Student accounts use `roll_number`; faculty and HOD accounts use `faculty_code`.
 
 `sessions`
 
@@ -58,6 +59,18 @@ Stores login sessions, so the browser can remain logged in.
 `faculty_codes`
 
 Stores valid university staff/faculty registration codes.
+
+`hod_codes`
+
+Stores valid HOD verification codes.
+
+`academic_records`
+
+Stores student attendance, marks, CGPA, and performance.
+
+`faculty_attendance`
+
+Stores faculty attendance and performance controlled by HOD accounts.
 
 ## Faculty Code Commands
 
@@ -74,6 +87,14 @@ python3 manage.py add-code AU-CSE-2026 --label "CSE faculty registration"
 ```
 
 Use that code in the Staff Registration form.
+
+Create a HOD verification code:
+
+```bash
+python3 manage.py add-hod-code AU-HOD-CSE-2026 --label "CSE HOD verification"
+```
+
+Use a faculty code plus a HOD code in the HOD registration flow.
 
 Disable a code:
 

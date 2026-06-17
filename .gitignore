@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .DS_Store
+.vscode/
 annamacharya_portal.sqlite3
 *.sqlite3-journal
 *.sqlite3-wal

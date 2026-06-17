@@ -4,12 +4,16 @@ const state = {
     staff: "",
   },
   user: null,
+  students: [],
+  faculty: [],
 };
 
 const views = Array.from(document.querySelectorAll(".view"));
 const toast = document.getElementById("toast");
 const splash = document.getElementById("splash");
 const app = document.getElementById("app");
+const isHod = document.getElementById("isHod");
+const hodCodeField = document.getElementById("hodCodeField");
 
 document.getElementById("enterPortal").addEventListener("click", () => {
   splash.style.transition = "opacity 520ms ease, transform 520ms ease";
@@ -18,12 +22,23 @@ document.getElementById("enterPortal").addEventListener("click", () => {
   setTimeout(() => {
     splash.classList.add("is-hidden");
     app.classList.remove("is-hidden");
-    showView(state.user ? "dashboard" : "roles");
+    showView(state.user ? dashboardForRole(state.user.role) : "roles");
   }, 540);
 });
 
 document.querySelectorAll("[data-view]").forEach((element) => {
   element.addEventListener("click", () => showView(element.dataset.view));
+});
+
+document.querySelectorAll(".logout-action").forEach((button) => {
+  button.addEventListener("click", logout);
+});
+
+document.getElementById("logoutBtn").addEventListener("click", logout);
+
+isHod.addEventListener("change", () => {
+  hodCodeField.classList.toggle("is-hidden", !isHod.checked);
+  hodCodeField.querySelector("input").required = isHod.checked;
 });
 
 document.querySelectorAll("[data-photo]").forEach((input) => {
@@ -54,18 +69,18 @@ document.getElementById("studentForm").addEventListener("submit", async (event) 
     notify("Passwords do not match.", "error");
     return;
   }
-  const payload = {
+  const result = await postJson("/api/register", {
     role: "student",
     name: data.name,
     gender: data.gender,
     course: data.course,
+    branch: data.branch,
     year: data.year,
     semester: data.semester,
     roll_number: data.roll_number,
     password: data.password,
     profile_photo: state.photos.student,
-  };
-  const result = await postJson("/api/register", payload);
+  });
   handleAuthResult(result, form);
 });
 
@@ -77,16 +92,17 @@ document.getElementById("staffForm").addEventListener("submit", async (event) =>
     notify("Passwords do not match.", "error");
     return;
   }
-  const payload = {
+  const result = await postJson("/api/register", {
     role: "staff",
+    is_hod: data.is_hod === "on",
     name: data.name,
     gender: data.gender,
     department: data.department,
     faculty_code: data.faculty_code,
+    hod_code: data.hod_code,
     password: data.password,
     profile_photo: state.photos.staff,
-  };
-  const result = await postJson("/api/register", payload);
+  });
   handleAuthResult(result, form);
 });
 
@@ -102,12 +118,36 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
   handleAuthResult(result, form);
 });
 
-document.getElementById("logoutBtn").addEventListener("click", async () => {
-  await postJson("/api/logout", {});
-  state.user = null;
-  notify("Logged out successfully.", "success");
-  showView("roles");
+document.getElementById("recordForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const result = await postJson("/api/student-record", data);
+  if (!result.ok) {
+    notify(result.message || "Could not update student record.", "error");
+    return;
+  }
+  notify(result.message, "success");
+  form.reset();
+  await loadStudents();
 });
+
+document.getElementById("facultyAttendanceForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const result = await postJson("/api/faculty-attendance", data);
+  if (!result.ok) {
+    notify(result.message || "Could not update faculty attendance.", "error");
+    return;
+  }
+  notify(result.message, "success");
+  form.reset();
+  await loadFaculty();
+});
+
+document.getElementById("studentSearch").addEventListener("input", renderStudentsTable);
+document.getElementById("facultySearch").addEventListener("input", renderFacultyTable);
 
 async function hydrate() {
   try {
@@ -115,7 +155,7 @@ async function hydrate() {
     const result = await response.json();
     if (result.authenticated) {
       state.user = result.user;
-      renderDashboard(result.user);
+      await renderWorkspace(result.user);
     }
   } catch {
     notify("Could not check existing login session.", "error");
@@ -123,7 +163,7 @@ async function hydrate() {
 }
 
 function showView(id) {
-  if (id === "dashboard" && !state.user) {
+  if (id.endsWith("dashboard") && !state.user) {
     id = "login";
   }
   views.forEach((view) => view.classList.toggle("is-hidden", view.id !== id));
@@ -144,33 +184,146 @@ async function postJson(url, payload) {
   return result;
 }
 
-function handleAuthResult(result, form) {
+async function handleAuthResult(result, form) {
   if (!result.ok) {
     notify(result.message || "Request failed.", "error");
     return;
   }
   state.user = result.user;
-  renderDashboard(result.user);
   form.reset();
+  state.photos.student = "";
+  state.photos.staff = "";
+  isHod.checked = false;
+  hodCodeField.classList.add("is-hidden");
   notify(result.message || "Success.", "success");
-  showView("dashboard");
+  await renderWorkspace(result.user);
 }
 
-function renderDashboard(user) {
+async function renderWorkspace(user) {
+  if (user.role === "student") {
+    await renderStudentDashboard(user);
+    showView("student-dashboard");
+    return;
+  }
+  if (user.role === "faculty") {
+    renderStaffHeading(user);
+    await loadStudents();
+    showView("faculty-dashboard");
+    return;
+  }
+  if (user.role === "hod") {
+    renderStaffHeading(user);
+    await Promise.all([loadStudents(), loadFaculty()]);
+    showView("hod-dashboard");
+  }
+}
+
+async function renderStudentDashboard(user) {
   document.getElementById("dashName").textContent = `Welcome, ${user.name}`;
-  const idLabel = user.role === "student" ? `Roll Number: ${user.roll_number}` : `Faculty Code: ${user.faculty_code}`;
-  document.getElementById("dashMeta").textContent = `${titleCase(user.role)} account active · ${idLabel}`;
-  const details = user.role === "student"
-    ? `${user.course}, ${user.year}, ${user.semester}. Gender: ${user.gender}.`
-    : `${user.course}. Gender: ${user.gender}.`;
-  document.getElementById("dashProfile").textContent = details;
+  document.getElementById("dashMeta").textContent = `Roll Number: ${user.roll_number} · ${user.course} ${user.branch || ""}`;
+  document.getElementById("dashProfile").textContent = `${user.course}, ${user.branch}, ${user.year}, ${user.semester}. Gender: ${user.gender}.`;
   document.getElementById("dashPhoto").src = user.profile_photo || "/images/au1.jpeg";
   renderSavedDetails(user);
+
+  const response = await fetch("/api/me");
+  const result = await response.json();
+  const record = result.user?.academic_record || {};
+  renderMetricList("studentAcademicRecord", [
+    ["Attendance", `${record.attendance || 0}%`],
+    ["Marks", `${record.marks || 0}/100`],
+    ["CGPA", `${record.cgpa || 0}/10`],
+    ["Performance", record.performance || "Not updated"],
+  ]);
+}
+
+function renderStaffHeading(user) {
+  document.getElementById("facultyName").textContent = `Welcome, ${user.name}`;
+  document.getElementById("hodName").textContent = `Welcome, ${user.name}`;
+}
+
+async function loadStudents() {
+  const response = await fetch("/api/students");
+  const result = await response.json();
+  if (!result.ok) {
+    notify(result.message || "Could not load students.", "error");
+    return;
+  }
+  state.students = result.students || [];
+  renderStudentsTable();
+  renderHodStudentsTable();
+}
+
+async function loadFaculty() {
+  const response = await fetch("/api/faculty");
+  const result = await response.json();
+  if (!result.ok) {
+    notify(result.message || "Could not load faculty.", "error");
+    return;
+  }
+  state.faculty = result.faculty || [];
+  renderFacultyTable();
+}
+
+function renderStudentsTable() {
+  const query = document.getElementById("studentSearch")?.value?.toLowerCase() || "";
+  const students = state.students.filter((student) => searchable(student).includes(query));
+  document.getElementById("studentsTable").innerHTML = studentRows(students);
+}
+
+function renderHodStudentsTable() {
+  const table = document.getElementById("hodStudentsTable");
+  if (table) table.innerHTML = studentRows(state.students);
+}
+
+function renderFacultyTable() {
+  const query = document.getElementById("facultySearch")?.value?.toLowerCase() || "";
+  const faculty = state.faculty.filter((member) => searchable(member).includes(query));
+  document.getElementById("facultyTable").innerHTML = faculty.map((member) => `
+    <tr>
+      <td>${escapeHtml(member.faculty_code)}</td>
+      <td>${escapeHtml(member.name)}</td>
+      <td>${escapeHtml(member.course || "")}</td>
+      <td>${escapeHtml(member.attendance || 0)}%</td>
+      <td>${escapeHtml(member.performance || "Not updated")}</td>
+    </tr>
+  `).join("") || emptyRow(5, "No faculty records found.");
+}
+
+function studentRows(students) {
+  return students.map((student) => `
+    <tr>
+      <td>${escapeHtml(student.roll_number)}</td>
+      <td>${escapeHtml(student.name)}</td>
+      <td>${escapeHtml([student.course, student.branch, student.year, student.semester].filter(Boolean).join(" · "))}</td>
+      <td>${escapeHtml(student.attendance || 0)}%</td>
+      <td>${escapeHtml(student.marks || 0)}</td>
+      <td>${escapeHtml(student.cgpa || 0)}</td>
+      <td>${escapeHtml(student.performance || "Not updated")}</td>
+    </tr>
+  `).join("") || emptyRow(7, "No student records found.");
+}
+
+function emptyRow(columns, message) {
+  return `<tr><td colspan="${columns}">${escapeHtml(message)}</td></tr>`;
+}
+
+async function logout() {
+  await postJson("/api/logout", {});
+  state.user = null;
+  notify("Logged out successfully.", "success");
+  showView("roles");
+}
+
+function dashboardForRole(role) {
+  if (role === "student") return "student-dashboard";
+  if (role === "faculty") return "faculty-dashboard";
+  if (role === "hod") return "hod-dashboard";
+  return "roles";
 }
 
 function renderSavedDetails(user) {
   const rows = [
-    ["Role", titleCase(user.role)],
+    ["Role", roleLabel(user.role)],
     ["Full Name", user.name],
     [user.role === "student" ? "Roll Number" : "Faculty Code", user.role === "student" ? user.roll_number : user.faculty_code],
     [user.role === "student" ? "Course" : "Department", user.course],
@@ -178,13 +331,18 @@ function renderSavedDetails(user) {
   ];
 
   if (user.role === "student") {
-    rows.splice(4, 0, ["Year", user.year], ["Semester", user.semester]);
+    rows.splice(4, 0, ["Branch", user.branch], ["Year", user.year], ["Semester", user.semester]);
   }
 
   rows.push(["Registered", formatDate(user.created_at)]);
-
   document.getElementById("dashDetails").innerHTML = rows
     .filter(([, value]) => value)
+    .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`)
+    .join("");
+}
+
+function renderMetricList(id, rows) {
+  document.getElementById(id).innerHTML = rows
     .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`)
     .join("");
 }
@@ -207,8 +365,10 @@ function readFileAsDataUrl(file) {
   });
 }
 
-function titleCase(value) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
+function roleLabel(role) {
+  if (role === "hod") return "Head of Department";
+  if (role === "faculty") return "Faculty";
+  return "Student";
 }
 
 function formatDate(value) {
@@ -224,8 +384,12 @@ function formatDate(value) {
   });
 }
 
+function searchable(item) {
+  return Object.values(item).join(" ").toLowerCase();
+}
+
 function escapeHtml(value) {
-  return String(value)
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")

@@ -1,6 +1,6 @@
 # Annamacharya University Portal Operator Manual
 
-This document is the day-to-day procedure for running, checking, editing, and deploying the Annamacharya University student/staff portal.
+This document is the day-to-day procedure for running, checking, editing, and deploying the Annamacharya University student/faculty/HOD portal.
 
 ## 0. Project Map
 
@@ -94,20 +94,22 @@ Press Control + C in Terminal
 
 `users`
 
-Stores all registered students and staff.
+Stores all registered students, faculty, and HOD users.
 
 Important columns:
 
 ```text
 id              Auto ID
-role            student or staff
+role            student, faculty, or hod
 name            Full name
 gender          Gender
-course          Student course or staff department
+course          Student course or faculty/HOD department
+branch          Student branch
 year            Student year
 semester        Student semester
 roll_number     Student login ID
-faculty_code    Staff login ID
+faculty_code    Faculty/HOD login ID
+hod_code        HOD verification code
 profile_photo   Uploaded profile photo as text data
 password_salt   Password security value
 password_hash   Hashed password
@@ -126,6 +128,18 @@ If you manually change those, login can break.
 `faculty_codes`
 
 Stores valid faculty/staff registration codes.
+
+`hod_codes`
+
+Stores valid HOD verification codes.
+
+`academic_records`
+
+Stores student attendance, marks, CGPA, and performance.
+
+`faculty_attendance`
+
+Stores faculty attendance and performance maintained by HOD accounts.
 
 Important columns:
 
@@ -186,7 +200,8 @@ SQLite database
 
 ```text
 student = student account
-staff   = faculty/staff account
+faculty = faculty account
+hod     = Head of Department account
 ```
 
 Student identification:
@@ -197,11 +212,20 @@ roll_number has value
 faculty_code is empty
 ```
 
-Faculty/staff identification:
+Faculty identification:
 
 ```text
-role = staff
+role = faculty
 faculty_code has value
+roll_number is empty
+```
+
+HOD identification:
+
+```text
+role = hod
+faculty_code has value
+hod_code has value
 roll_number is empty
 ```
 
@@ -210,7 +234,7 @@ roll_number is empty
 Open a SQL console in DataGrip and run:
 
 ```sql
-SELECT id, role, name, gender, course, year, semester, roll_number, faculty_code, created_at
+SELECT id, role, name, gender, course, branch, year, semester, roll_number, faculty_code, hod_code, created_at
 FROM users
 ORDER BY id DESC;
 ```
@@ -224,12 +248,21 @@ WHERE role = 'student'
 ORDER BY id DESC;
 ```
 
-Only staff:
+Only faculty:
 
 ```sql
 SELECT id, name, course AS department, faculty_code, created_at
 FROM users
-WHERE role = 'staff'
+WHERE role = 'faculty'
+ORDER BY id DESC;
+```
+
+Only HOD:
+
+```sql
+SELECT id, name, course AS department, faculty_code, hod_code, created_at
+FROM users
+WHERE role = 'hod'
 ORDER BY id DESC;
 ```
 
@@ -337,11 +370,11 @@ Admin creates faculty code
         ↓
 Admin gives code to real faculty member
         ↓
-Faculty opens Staff Registration
+Faculty opens Faculty/HOD Registration
         ↓
 Faculty enters code and password
         ↓
-Portal creates staff account
+Portal creates faculty account
         ↓
 Faculty later logs in using faculty code + password
 ```
@@ -369,6 +402,25 @@ Check active codes:
 
 ```bash
 python3 manage.py list-codes
+```
+
+Create a HOD verification code:
+
+```bash
+python3 manage.py add-hod-code AU-HOD-CSE-2026 --label "CSE HOD verification"
+```
+
+Check active HOD codes:
+
+```bash
+python3 manage.py list-hod-codes
+```
+
+For HOD registration, give both codes:
+
+```text
+Faculty Code: AU-CSE-2026
+HOD Code: AU-HOD-CSE-2026
 ```
 
 Give the code to the faculty member:

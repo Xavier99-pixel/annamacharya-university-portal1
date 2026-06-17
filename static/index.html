@@ -40,7 +40,7 @@
       <nav>
         <button data-view="roles">Roles</button>
         <button data-view="student-register">Student Account</button>
-        <button data-view="staff-register">Staff Account</button>
+        <button data-view="staff-register">Faculty/HOD Account</button>
         <button data-view="login">Login</button>
       </nav>
     </header>
@@ -50,7 +50,7 @@
         <div class="hero-copy">
           <p class="eyebrow">Gateway to Excellence</p>
           <h2>Choose your login role</h2>
-          <p>Students create accounts with academic details and roll numbers. Faculty and staff must register with a university-issued faculty code to prevent role misuse.</p>
+          <p>Students register with roll numbers. Faculty update student attendance, marks, CGPA and performance. HODs supervise faculty attendance through a separate protected workspace.</p>
           <div class="quick-actions">
             <button class="primary-btn" data-view="student-register">
               <span class="material-symbols-outlined">school</span>
@@ -58,7 +58,7 @@
             </button>
             <button class="ghost-btn" data-view="staff-register">
               <span class="material-symbols-outlined">person_pin</span>
-              Staff Registration
+              Faculty / HOD Registration
             </button>
           </div>
         </div>
@@ -66,7 +66,7 @@
           <img src="/images/a.jpeg" alt="Landscape view of Annamacharya University campus">
           <div>
             <strong>Role-based authentication</strong>
-            <span>Student roll number login and faculty code login run through separate database checks.</span>
+            <span>Student, faculty and HOD accounts are separated by backend role checks, so each login opens only its own workspace.</span>
           </div>
         </div>
       </section>
@@ -96,6 +96,7 @@
             <label>Full Name<input name="name" required placeholder="Enter full name"></label>
             <label>Gender<select name="gender" required><option value="">Select</option><option>Female</option><option>Male</option><option>Other</option></select></label>
             <label>Course<select name="course" required><option value="">Select course</option><option>B.Tech</option><option>M.Tech</option><option>B.Ed</option><option>MBA</option><option>PhD</option><option>PG</option></select></label>
+            <label>Branch<input name="branch" required placeholder="Example: CSE, ECE, MBA Finance"></label>
             <label>Year<select name="year" required><option value="">Select year</option><option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option><option>Research</option></select></label>
             <label>Semester<select name="semester" required><option value="">Select semester</option><option>Semester 1</option><option>Semester 2</option><option>Semester 3</option><option>Semester 4</option><option>Semester 5</option><option>Semester 6</option><option>Semester 7</option><option>Semester 8</option></select></label>
             <label>Roll Number<input name="roll_number" required placeholder="Example: AU23A0123"></label>
@@ -112,16 +113,16 @@
       <section id="staff-register" class="view form-shell is-hidden">
         <aside>
           <img src="/images/au3.jpeg" alt="Annamacharya University academic building">
-          <h2>Faculty Verification</h2>
-          <p>Staff registration requires the official university faculty code. Demo codes are listed in the project README.</p>
+          <h2>Faculty & HOD Verification</h2>
+          <p>Faculty registration requires a faculty code. HOD registration requires both faculty code and HOD verification code.</p>
           <ol>
             <li><span>1</span> Staff identity</li>
-            <li><span>2</span> Faculty code check</li>
-            <li><span>3</span> Staff dashboard access</li>
+            <li><span>2</span> Faculty/HOD code check</li>
+            <li><span>3</span> Protected workspace access</li>
           </ol>
         </aside>
         <form id="staffForm" class="portal-form" autocomplete="on">
-          <h2>Staff Account</h2>
+          <h2>Faculty / HOD Account</h2>
           <div class="photo-row">
             <label class="photo-picker">
               <img data-preview="staff" src="/images/au1.jpeg" alt="Staff profile preview">
@@ -135,11 +136,13 @@
             <label>Gender<select name="gender" required><option value="">Select</option><option>Female</option><option>Male</option><option>Other</option></select></label>
             <label>Department<input name="department" required placeholder="Example: CSE Department"></label>
             <label>Faculty Code<input name="faculty_code" required placeholder="Example: AU-FAC-2026"></label>
+            <label class="check-row"><input id="isHod" name="is_hod" type="checkbox"><span>Register as HOD (Head of Department)</span></label>
+            <label id="hodCodeField" class="is-hidden">HOD Code<input name="hod_code" placeholder="Example: AU-HOD-CSE-2026"></label>
             <label>Password<input name="password" required minlength="6" type="password" placeholder="Minimum 6 characters"></label>
             <label>Confirm Password<input name="confirm_password" required minlength="6" type="password" placeholder="Repeat password"></label>
           </div>
           <button class="primary-btn" type="submit">
-            <span>Create Staff Account</span>
+            <span>Create Faculty/HOD Account</span>
             <span class="material-symbols-outlined">verified_user</span>
           </button>
         </form>
@@ -151,7 +154,8 @@
           <h2>Portal Login</h2>
           <div class="segmented" role="group" aria-label="Login role">
             <label><input type="radio" name="role" value="student" checked><span>Student</span></label>
-            <label><input type="radio" name="role" value="staff"><span>Staff</span></label>
+            <label><input type="radio" name="role" value="faculty"><span>Faculty</span></label>
+            <label><input type="radio" name="role" value="hod"><span>HOD</span></label>
           </div>
           <label>ID Number<input name="identifier" required placeholder="Roll number or faculty code"></label>
           <label>Password<input name="password" type="password" required placeholder="Enter password"></label>
@@ -162,11 +166,11 @@
         </form>
       </section>
 
-      <section id="dashboard" class="view dashboard is-hidden">
+      <section id="student-dashboard" class="view dashboard is-hidden">
         <div class="dashboard-hero">
           <img src="/images/auset.jpeg" alt="Aerial view of Annamacharya University campus">
           <div>
-            <p class="eyebrow">Authenticated Dashboard</p>
+            <p class="eyebrow">Student Dashboard</p>
             <h2 id="dashName">Welcome</h2>
             <p id="dashMeta">Your account is active.</p>
           </div>
@@ -182,14 +186,14 @@
             </div>
           </article>
           <article>
-            <span class="material-symbols-outlined">security</span>
-            <h3>Authentication</h3>
-            <p>Student and staff login records are separated by role in SQLite.</p>
+            <span class="material-symbols-outlined">monitoring</span>
+            <h3>Academic Record</h3>
+            <dl id="studentAcademicRecord" class="metric-list"></dl>
           </article>
           <article>
-            <span class="material-symbols-outlined">database</span>
-            <h3>Database</h3>
-            <p>Accounts are stored locally in <strong>annamacharya_portal.sqlite3</strong>.</p>
+            <span class="material-symbols-outlined">lock</span>
+            <h3>Permissions</h3>
+            <p>Students can view only their own profile and academic record. Faculty and HOD workspaces are blocked for student accounts.</p>
           </article>
         </div>
         <button id="logoutBtn" class="ghost-btn">
@@ -197,9 +201,86 @@
           Logout
         </button>
       </section>
+
+      <section id="faculty-dashboard" class="view dashboard workspace is-hidden">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">Faculty Workspace</p>
+            <h2 id="facultyName">Faculty Dashboard</h2>
+            <p>Search students by roll number and update attendance, marks, CGPA and performance.</p>
+          </div>
+          <button class="ghost-btn logout-action"><span class="material-symbols-outlined">logout</span>Logout</button>
+        </div>
+        <div class="workspace-grid">
+          <form id="recordForm" class="portal-form work-card">
+            <h3>Update Student Record</h3>
+            <label>Roll Number<input name="roll_number" required placeholder="Example: AU23A0123"></label>
+            <div class="grid two">
+              <label>Attendance %<input name="attendance" required type="number" min="0" max="100" step="0.01"></label>
+              <label>Marks<input name="marks" required type="number" min="0" max="100" step="0.01"></label>
+              <label>CGPA<input name="cgpa" required type="number" min="0" max="10" step="0.01"></label>
+              <label>Performance<select name="performance" required><option>Excellent</option><option>Good</option><option>Average</option><option>Needs Improvement</option></select></label>
+            </div>
+            <button class="primary-btn" type="submit"><span class="material-symbols-outlined">save</span>Save Student Record</button>
+          </form>
+          <section class="work-card">
+            <div class="table-head">
+              <h3>Registered Students</h3>
+              <input id="studentSearch" placeholder="Filter by roll no, name, course">
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Roll No</th><th>Name</th><th>Course</th><th>Attendance</th><th>Marks</th><th>CGPA</th><th>Performance</th></tr></thead>
+                <tbody id="studentsTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="hod-dashboard" class="view dashboard workspace is-hidden">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">Head of Department Workspace</p>
+            <h2 id="hodName">HOD Dashboard</h2>
+            <p>Monitor faculty and update faculty attendance/performance using faculty codes.</p>
+          </div>
+          <button class="ghost-btn logout-action"><span class="material-symbols-outlined">logout</span>Logout</button>
+        </div>
+        <div class="workspace-grid">
+          <form id="facultyAttendanceForm" class="portal-form work-card">
+            <h3>Update Faculty Attendance</h3>
+            <label>Faculty Code<input name="faculty_code" required placeholder="Example: AU-FAC-2026"></label>
+            <label>Attendance %<input name="attendance" required type="number" min="0" max="100" step="0.01"></label>
+            <label>Performance<select name="performance" required><option>Excellent</option><option>Good</option><option>Average</option><option>Needs Improvement</option></select></label>
+            <button class="primary-btn" type="submit"><span class="material-symbols-outlined">fact_check</span>Save Faculty Attendance</button>
+          </form>
+          <section class="work-card">
+            <div class="table-head">
+              <h3>Faculty Directory</h3>
+              <input id="facultySearch" placeholder="Filter by faculty code, name, department">
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Faculty Code</th><th>Name</th><th>Department</th><th>Attendance</th><th>Performance</th></tr></thead>
+                <tbody id="facultyTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+        <section class="work-card">
+          <h3>Student Academic Overview</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Roll No</th><th>Name</th><th>Course</th><th>Attendance</th><th>Marks</th><th>CGPA</th><th>Performance</th></tr></thead>
+              <tbody id="hodStudentsTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
     </main>
   </div>
 
-  <script src="/app.js?v=20260617"></script>
+  <script src="/app.js?v=20260617-role-workspaces"></script>
 </body>
 </html>
