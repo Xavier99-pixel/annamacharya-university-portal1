@@ -141,6 +141,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/healthz":
+            self.send_json({"ok": True})
+            return
         if parsed.path == "/api/me":
             user = get_session_user(self.headers)
             self.send_json({"authenticated": bool(user), "user": user})

@@ -4,6 +4,7 @@ services:
     runtime: python
     buildCommand: python3 manage.py init-db
     startCommand: HOST=0.0.0.0 DATABASE_PATH=/var/data/annamacharya_portal.sqlite3 python3 app.py
+    healthCheckPath: /healthz
     disk:
       name: annamacharya-data
       mountPath: /var/data
