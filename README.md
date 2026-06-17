@@ -11,6 +11,12 @@ python3 app.py
 
 Open `http://127.0.0.1:8000`.
 
+## Main Documents
+
+- `DEVELOPER_ADMIN_HANDBOOK.md`: your role as developer/admin, monitoring routine, database management, and review explanation
+- `OPERATOR_MANUAL.md`: full operating procedure
+- `DEPLOYMENT.md`: local and Render deployment procedure
+
 ## How SQLite Connects
 
 The frontend calls backend API URLs such as `/api/register` and `/api/login`.
