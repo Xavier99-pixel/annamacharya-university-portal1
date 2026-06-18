@@ -792,12 +792,13 @@ async function requestStudentOtp() {
     return;
   }
   if (result.demo_otp) {
-    otpStatus.textContent = `Demo OTP: ${result.demo_otp}. Enter it below and verify.`;
+    const label = result.delivery_mode === "fallback" ? "Evaluation OTP" : "Demo OTP";
+    otpStatus.textContent = `${label}: ${result.demo_otp}. Enter it below and verify.`;
   } else {
     otpStatus.textContent = result.message || `OTP sent by SMS to ${result.to || "your mobile number"}.`;
   }
   otpStatus.className = "otp-demo";
-  notify(result.demo_otp ? "OTP generated for demo verification." : "OTP sent by SMS.", "success");
+  notify(result.demo_otp ? "OTP ready for verification." : "OTP sent by SMS.", "success");
 }
 
 async function verifyStudentOtp() {

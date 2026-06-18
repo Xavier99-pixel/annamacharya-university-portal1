@@ -30,6 +30,7 @@ TEXTBELT_KEY=textbelt
 ```
 
 Free Textbelt demo mode is limited, commonly 1 SMS per day. Use it to prove real OTP delivery during evaluation, not for many students.
+If the free route blocks a country or quota, the portal falls back to evaluation OTP mode so student registration never gets stuck during a project demo.
 
 ### Twilio
 

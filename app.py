@@ -36,6 +36,7 @@ DEFAULT_SMS_PROVIDER = "textbelt" if RUNNING_ON_RENDER else "demo"
 SMS_PROVIDER = os.environ.get("SMS_PROVIDER", DEFAULT_SMS_PROVIDER).strip().lower()
 SMS_COUNTRY_CODE = os.environ.get("SMS_COUNTRY_CODE", "+91").strip() or "+91"
 SMS_DEMO_MODE = os.environ.get("SMS_DEMO_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+SMS_FAILURE_FALLBACK = os.environ.get("SMS_FAILURE_FALLBACK", "true").strip().lower() in {"1", "true", "yes", "on"}
 DEFAULT_FACULTY_CODES = ("AU-FAC-2026", "AU-STAFF-1001", "AITS-FAC-7788")
 DEFAULT_HOD_CODES = ("AU-HOD-CSE-2026", "AU-HOD-MBA-2026", "AU-HOD-ADMIN-2026")
 LOCAL_ADMIN_KEY = "AU-ADMIN-2026"
@@ -622,7 +623,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             "delivery_mode": delivery["mode"],
             "expires_in_minutes": OTP_TTL_MINUTES,
         }
-        if delivery["mode"] == "demo":
+        if delivery["mode"] in {"demo", "fallback"}:
             response["demo_otp"] = otp_code
         self.send_json(
             response
@@ -1331,7 +1332,12 @@ def send_otp_sms(phone_number: str, otp_code: str) -> dict:
 
     message = otp_sms_body(otp_code)
     if SMS_PROVIDER == "textbelt":
-        send_textbelt_sms(phone_number, message)
+        try:
+            send_textbelt_sms(phone_number, message)
+        except ValueError as exc:
+            if SMS_FAILURE_FALLBACK:
+                return fallback_otp_delivery(phone_number, str(exc))
+            raise
     elif SMS_PROVIDER == "twilio":
         send_twilio_sms(phone_number, message)
     elif SMS_PROVIDER == "webhook":
@@ -1349,6 +1355,17 @@ def send_otp_sms(phone_number: str, otp_code: str) -> dict:
         "mode": SMS_PROVIDER,
         "masked_to": mask_phone(phone_number),
         "message": f"OTP sent by SMS to {mask_phone(phone_number)}.",
+    }
+
+
+def fallback_otp_delivery(phone_number: str, reason: str) -> dict:
+    return {
+        "mode": "fallback",
+        "masked_to": mask_phone(phone_number),
+        "message": (
+            "Free SMS delivery is unavailable for this number, so evaluation OTP mode is active. "
+            f"Reason: {reason}"
+        ),
     }
 
 
