@@ -149,7 +149,19 @@ Environment Variable: ADMIN_KEY
 Value: choose-your-private-admin-key
 ```
 
-If you do not set `ADMIN_KEY`, the demo key is `AU-ADMIN-2026`.
+On Render, set `ADMIN_KEY`. If you do not set it, deployed admin actions are blocked.
+
+For real student SMS OTP, add:
+
+```text
+SMS_PROVIDER=twilio
+SMS_COUNTRY_CODE=+91
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_FROM_NUMBER=+1xxxxxxxxxx
+```
+
+Local testing can use demo OTP mode, but do not expose demo OTPs on a public college demo unless you intentionally set `SMS_DEMO_MODE=true`.
 
 For permanent production data later, upgrade to a persistent disk or use a cloud database.
 

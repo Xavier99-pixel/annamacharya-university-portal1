@@ -10,6 +10,9 @@ import os
 import secrets
 import sqlite3
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import SimpleCookie
@@ -23,6 +26,11 @@ STATIC_DIR = ROOT / "static"
 DB_PATH = Path(os.environ.get("DATABASE_PATH", ROOT / "annamacharya_portal.sqlite3"))
 SESSION_TTL_DAYS = 7
 OTP_TTL_MINUTES = 10
+OTP_RESEND_SECONDS = 60
+OTP_HOURLY_LIMIT = 5
+SMS_PROVIDER = os.environ.get("SMS_PROVIDER", "demo").strip().lower()
+SMS_COUNTRY_CODE = os.environ.get("SMS_COUNTRY_CODE", "+91").strip() or "+91"
+SMS_DEMO_MODE = os.environ.get("SMS_DEMO_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
 DEFAULT_FACULTY_CODES = ("AU-FAC-2026", "AU-STAFF-1001", "AITS-FAC-7788")
 DEFAULT_HOD_CODES = ("AU-HOD-CSE-2026", "AU-HOD-MBA-2026", "AU-HOD-ADMIN-2026")
 LOCAL_ADMIN_KEY = "AU-ADMIN-2026"
@@ -594,6 +602,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
         now = utc_now()
         expires = now + timedelta(minutes=OTP_TTL_MINUTES)
         with connect_db() as db:
+            enforce_otp_rate_limit(db, phone_number, now)
             db.execute(
                 """
                 INSERT INTO otp_verifications (
@@ -603,14 +612,19 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 """,
                 (phone_number, otp_code, expires.isoformat(), now.isoformat()),
             )
+            delivery = send_otp_sms(phone_number, otp_code)
+        response = {
+            "ok": True,
+            "message": delivery["message"],
+            "phone_number": phone_number,
+            "to": delivery["masked_to"],
+            "delivery_mode": delivery["mode"],
+            "expires_in_minutes": OTP_TTL_MINUTES,
+        }
+        if delivery["mode"] == "demo":
+            response["demo_otp"] = otp_code
         self.send_json(
-            {
-                "ok": True,
-                "message": "OTP generated. Demo mode shows OTP on screen; connect SMS provider for real sending.",
-                "phone_number": phone_number,
-                "demo_otp": otp_code,
-                "expires_in_minutes": OTP_TTL_MINUTES,
-            }
+            response
         )
 
     def verify_otp(self) -> None:
@@ -1253,6 +1267,145 @@ def clean_phone(value) -> str:
 
 def valid_phone(phone_number: str) -> bool:
     return len(phone_number) == 10 and phone_number[0] in "6789"
+
+
+def enforce_otp_rate_limit(db: sqlite3.Connection, phone_number: str, now: datetime) -> None:
+    recent_cutoff = (now - timedelta(seconds=OTP_RESEND_SECONDS)).isoformat()
+    recent = db.execute(
+        """
+        SELECT id
+        FROM otp_verifications
+        WHERE phone_number = ? AND created_at > ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (phone_number, recent_cutoff),
+    ).fetchone()
+    if recent:
+        raise ValueError(f"Please wait {OTP_RESEND_SECONDS} seconds before requesting another OTP.")
+
+    hourly_cutoff = (now - timedelta(hours=1)).isoformat()
+    hourly_count = db.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM otp_verifications
+        WHERE phone_number = ? AND created_at > ?
+        """,
+        (phone_number, hourly_cutoff),
+    ).fetchone()["count"]
+    if hourly_count >= OTP_HOURLY_LIMIT:
+        raise ValueError("Too many OTP requests. Try again after one hour.")
+
+
+def should_use_demo_sms() -> bool:
+    if SMS_DEMO_MODE:
+        return True
+    return SMS_PROVIDER in {"", "demo"} and not RUNNING_ON_RENDER
+
+
+def format_sms_phone(phone_number: str) -> str:
+    country_code = SMS_COUNTRY_CODE if SMS_COUNTRY_CODE.startswith("+") else f"+{SMS_COUNTRY_CODE}"
+    return f"{country_code}{phone_number}"
+
+
+def mask_phone(phone_number: str) -> str:
+    formatted = format_sms_phone(phone_number)
+    return f"{formatted[:3]}******{formatted[-4:]}"
+
+
+def otp_sms_body(otp_code: str) -> str:
+    return (
+        f"Your Annamacharya University portal OTP is {otp_code}. "
+        f"It expires in {OTP_TTL_MINUTES} minutes. Do not share it."
+    )
+
+
+def send_otp_sms(phone_number: str, otp_code: str) -> dict:
+    if should_use_demo_sms():
+        return {
+            "mode": "demo",
+            "masked_to": mask_phone(phone_number),
+            "message": "Demo OTP generated. Configure SMS_PROVIDER=twilio for real SMS delivery.",
+        }
+
+    message = otp_sms_body(otp_code)
+    if SMS_PROVIDER == "twilio":
+        send_twilio_sms(phone_number, message)
+    elif SMS_PROVIDER == "webhook":
+        send_webhook_sms(phone_number, message, otp_code)
+    elif SMS_PROVIDER in {"", "demo"}:
+        raise ValueError(
+            "Real SMS is not configured. Set SMS_PROVIDER=twilio with Twilio credentials, "
+            "or set SMS_DEMO_MODE=true only for testing."
+        )
+    else:
+        raise ValueError(f"Unsupported SMS_PROVIDER: {SMS_PROVIDER}. Use twilio or webhook.")
+
+    return {
+        "mode": SMS_PROVIDER,
+        "masked_to": mask_phone(phone_number),
+        "message": f"OTP sent by SMS to {mask_phone(phone_number)}.",
+    }
+
+
+def send_twilio_sms(phone_number: str, message: str) -> None:
+    account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "").strip()
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "").strip()
+    from_number = os.environ.get("TWILIO_FROM_NUMBER", "").strip()
+    if not account_sid or not auth_token or not from_number:
+        raise ValueError("Twilio SMS is not configured. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER.")
+
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    body = urllib.parse.urlencode(
+        {
+            "To": format_sms_phone(phone_number),
+            "From": from_number,
+            "Body": message,
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(url, data=body, method="POST")
+    credentials = base64.b64encode(f"{account_sid}:{auth_token}".encode("utf-8")).decode("ascii")
+    request.add_header("Authorization", f"Basic {credentials}")
+    request.add_header("Content-Type", "application/x-www-form-urlencoded")
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            if response.status not in {200, 201}:
+                raise ValueError("Twilio did not accept the SMS request.")
+    except urllib.error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore")[:200]
+        raise ValueError(f"Twilio SMS failed: {details or exc.reason}") from exc
+    except urllib.error.URLError as exc:
+        raise ValueError(f"Could not reach Twilio SMS service: {exc.reason}") from exc
+
+
+def send_webhook_sms(phone_number: str, message: str, otp_code: str) -> None:
+    webhook_url = os.environ.get("SMS_WEBHOOK_URL", "").strip()
+    if not webhook_url:
+        raise ValueError("SMS webhook is not configured. Add SMS_WEBHOOK_URL.")
+    payload = json.dumps(
+        {
+            "phone_number": phone_number,
+            "to": format_sms_phone(phone_number),
+            "message": message,
+            "otp": otp_code,
+            "project": "Annamacharya University Portal",
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(webhook_url, data=payload, method="POST")
+    request.add_header("Content-Type", "application/json")
+    auth_header = os.environ.get("SMS_WEBHOOK_AUTH_HEADER", "").strip()
+    auth_value = os.environ.get("SMS_WEBHOOK_AUTH_VALUE", "").strip()
+    if auth_header and auth_value:
+        request.add_header(auth_header, auth_value)
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            if response.status < 200 or response.status >= 300:
+                raise ValueError("SMS webhook did not accept the request.")
+    except urllib.error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore")[:200]
+        raise ValueError(f"SMS webhook failed: {details or exc.reason}") from exc
+    except urllib.error.URLError as exc:
+        raise ValueError(f"Could not reach SMS webhook: {exc.reason}") from exc
 
 
 def is_phone_verified(phone_number: str) -> bool:

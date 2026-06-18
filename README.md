@@ -2,7 +2,7 @@
 
 Student, faculty, and HOD login hub with local Python, SQLite authentication, profile photos, role-based dashboards, database-managed verification codes, and academic record management.
 
-Student registration includes phone number + OTP verification. In free demo mode, the backend generates an OTP and shows it on screen; connect an SMS provider later for real delivery.
+Student registration includes phone number + OTP verification. The backend can send real SMS OTPs through Twilio or a generic SMS webhook when provider credentials are configured.
 
 ## Run Locally
 
@@ -12,6 +12,48 @@ python3 app.py
 ```
 
 Open `http://127.0.0.1:8000`.
+
+## Real SMS OTP Setup
+
+Local development can still use demo OTPs. For the deployed website, configure a real SMS provider in Render environment variables.
+
+### Twilio
+
+Create a Twilio account, buy or activate an SMS-capable sender number, then add these Render environment variables:
+
+```text
+SMS_PROVIDER=twilio
+SMS_COUNTRY_CODE=+91
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_FROM_NUMBER=+1xxxxxxxxxx
+```
+
+After redeploy, students click `Send OTP`, receive the code by SMS, enter it, and then registration is allowed. The OTP expires after 10 minutes. The backend also blocks rapid repeat requests to the same phone number.
+
+### Generic SMS Webhook
+
+If an Indian SMS provider gives you a custom HTTP endpoint, use:
+
+```text
+SMS_PROVIDER=webhook
+SMS_COUNTRY_CODE=+91
+SMS_WEBHOOK_URL=https://provider.example.com/send
+SMS_WEBHOOK_AUTH_HEADER=Authorization
+SMS_WEBHOOK_AUTH_VALUE=Bearer your-provider-token
+```
+
+The portal sends JSON with `phone_number`, `to`, `message`, `otp`, and `project`.
+
+### Local Demo Mode
+
+For local testing only, leave `SMS_PROVIDER` unset or set:
+
+```text
+SMS_DEMO_MODE=true
+```
+
+Do not enable demo mode on the public website unless you intentionally want OTPs shown on screen for testing.
 
 ## Main Documents
 

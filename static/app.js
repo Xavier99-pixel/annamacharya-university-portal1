@@ -791,9 +791,13 @@ async function requestStudentOtp() {
     notify(result.message || "Could not generate OTP.", "error");
     return;
   }
-  otpStatus.textContent = `Demo OTP: ${result.demo_otp}. Enter it below and verify.`;
+  if (result.demo_otp) {
+    otpStatus.textContent = `Demo OTP: ${result.demo_otp}. Enter it below and verify.`;
+  } else {
+    otpStatus.textContent = result.message || `OTP sent by SMS to ${result.to || "your mobile number"}.`;
+  }
   otpStatus.className = "otp-demo";
-  notify("OTP generated for demo verification.", "success");
+  notify(result.demo_otp ? "OTP generated for demo verification." : "OTP sent by SMS.", "success");
 }
 
 async function verifyStudentOtp() {
@@ -924,7 +928,7 @@ function answerChatbot(question) {
     return "Architecture: HTML/CSS/JavaScript frontend sends JSON with fetch() to Python app.py API routes. Python validates roles, hashes passwords, manages sessions, and reads/writes SQLite tables.";
   }
   if (q.includes("otp") || q.includes("phone")) {
-    return "OTP flow: student enters phone, clicks Send OTP, backend stores a 6 digit demo OTP, student verifies it, then registration is allowed. A real production app would connect an SMS provider.";
+    return "OTP flow: student enters phone, clicks Send OTP, backend stores a 6 digit OTP, then sends it by SMS when SMS_PROVIDER is configured. Local testing can still use demo mode.";
   }
   if (q.includes("deploy") || q.includes("render")) {
     return "Deployment: push latest GitHub main branch, then deploy on Render. Free Render uses temporary SQLite at /tmp, so data can reset on redeploy. For permanent data, use a persistent disk or cloud database.";
