@@ -12,7 +12,7 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 
 ROOT = Path(__file__).resolve().parent
@@ -22,6 +22,7 @@ SESSION_TTL_DAYS = 7
 OTP_TTL_MINUTES = 10
 DEFAULT_FACULTY_CODES = ("AU-FAC-2026", "AU-STAFF-1001", "AITS-FAC-7788")
 DEFAULT_HOD_CODES = ("AU-HOD-CSE-2026", "AU-HOD-MBA-2026", "AU-HOD-ADMIN-2026")
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "AU-ADMIN-2026")
 
 
 def utc_now() -> datetime:
@@ -318,6 +319,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
                         "SELECT code, label FROM hod_codes WHERE active = 1 ORDER BY code"
                     ).fetchall()
                 self.send_json({"codes": [dict(row) for row in rows]})
+                return
+            if parsed.path == "/api/admin/overview":
+                self.admin_overview(parsed.query)
                 return
             if parsed.path == "/api/students":
                 self.students()
@@ -691,6 +695,60 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 (faculty["id"], attendance, performance, user["id"], utc_now().isoformat()),
             )
         self.send_json({"ok": True, "message": "Faculty attendance updated."})
+
+    def admin_overview(self, query: str) -> None:
+        params = parse_qs(query)
+        key = (params.get("key") or [""])[0]
+        if not hmac.compare_digest(key, ADMIN_KEY):
+            raise ValueError("Valid admin key is required.")
+        with connect_db() as db:
+            role_rows = db.execute(
+                """
+                SELECT role, COUNT(*) AS total
+                FROM users
+                GROUP BY role
+                ORDER BY role
+                """
+            ).fetchall()
+            recent_users = db.execute(
+                """
+                SELECT
+                    id, role, name, roll_number, faculty_code, hod_code, phone_number,
+                    phone_verified, course, branch, year, semester, created_at
+                FROM users
+                ORDER BY datetime(created_at) DESC, id DESC
+                LIMIT 50
+                """
+            ).fetchall()
+            records = db.execute(
+                """
+                SELECT
+                    users.roll_number, users.name, users.course, users.branch,
+                    academic_records.attendance, academic_records.internal_marks,
+                    academic_records.external_marks, academic_records.marks,
+                    academic_records.cgpa, academic_records.performance,
+                    academic_records.updated_at
+                FROM users
+                LEFT JOIN academic_records ON academic_records.student_id = users.id
+                WHERE users.role = 'student'
+                ORDER BY users.roll_number
+                LIMIT 50
+                """
+            ).fetchall()
+        counts = {"student": 0, "faculty": 0, "hod": 0}
+        for row in role_rows:
+            counts[row["role"]] = row["total"]
+        self.send_json(
+            {
+                "ok": True,
+                "database_path": str(DB_PATH),
+                "counts": counts,
+                "total_users": sum(counts.values()),
+                "recent_users": [dict(row) for row in recent_users],
+                "student_records": [dict(row) for row in records],
+                "note": "This shows the database used by the running website instance.",
+            }
+        )
 
     def send_json(self, payload: dict, status: int = HTTPStatus.OK, cookie: str | None = None) -> None:
         body = json.dumps(payload).encode("utf-8")

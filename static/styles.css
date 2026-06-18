@@ -267,6 +267,7 @@ main {
 }
 
 .campus-panel {
+  position: relative;
   border-radius: 8px;
   overflow: hidden;
   background: #fff;
@@ -274,11 +275,89 @@ main {
   box-shadow: 0 20px 60px rgba(26, 54, 93, 0.13);
 }
 
-.campus-panel img {
+.campus-ripple {
+  --ripple-x: 50%;
+  --ripple-y: 50%;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  cursor: crosshair;
+}
+
+.campus-ripple::before,
+.campus-ripple::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.campus-ripple::before {
+  z-index: 1;
+  background:
+    radial-gradient(circle at var(--ripple-x) var(--ripple-y), rgba(255, 255, 255, 0.58), transparent 8rem),
+    radial-gradient(circle at var(--ripple-x) var(--ripple-y), rgba(102, 175, 254, 0.34), transparent 13rem);
+  mix-blend-mode: screen;
+}
+
+.campus-ripple::after {
+  z-index: 2;
+  background:
+    repeating-radial-gradient(circle at var(--ripple-x) var(--ripple-y), rgba(255, 255, 255, 0.36) 0 2px, transparent 3px 12px);
+  filter: blur(0.4px);
+}
+
+.campus-ripple.is-active::before,
+.campus-ripple.is-active::after {
+  opacity: 1;
+}
+
+.campus-ripple img {
   width: 100%;
   aspect-ratio: 16 / 10;
   display: block;
   object-fit: cover;
+  transition: transform 460ms ease, filter 460ms ease;
+}
+
+.campus-ripple.is-active img {
+  transform: scale(1.025);
+  filter: saturate(1.1) contrast(1.04);
+}
+
+.water-ring {
+  position: absolute;
+  z-index: 3;
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: waterPulse 900ms ease-out forwards;
+}
+
+.ripple-hint {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(0, 32, 69, 0.78);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  backdrop-filter: blur(12px);
+}
+
+.ripple-hint .material-symbols-outlined {
+  font-size: 17px;
 }
 
 .campus-panel div {
@@ -305,6 +384,47 @@ main {
 
 .campus-link:hover {
   text-decoration: underline;
+}
+
+.location-band {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.55fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  margin-top: 34px;
+  padding: 24px;
+  border: 1px solid rgba(0, 97, 165, 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(214, 227, 255, 0.58), rgba(255, 255, 255, 0.94)),
+    #fff;
+  box-shadow: 0 14px 42px rgba(0, 32, 69, 0.08);
+}
+
+.location-band h2 {
+  margin: 0;
+  color: var(--primary);
+  font-size: clamp(26px, 3.5vw, 42px);
+  line-height: 1.08;
+}
+
+.location-band p:not(.eyebrow) {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.map-frame {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(0, 32, 69, 0.12);
+}
+
+.map-frame iframe {
+  display: block;
+  width: 100%;
+  height: 320px;
 }
 
 .form-shell {
@@ -764,6 +884,48 @@ select:focus {
   align-items: start;
 }
 
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.admin-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stat-grid div {
+  display: grid;
+  gap: 6px;
+  min-height: 96px;
+  align-content: center;
+  padding: 16px;
+  border: 1px solid rgba(0, 97, 165, 0.18);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(214, 227, 255, 0.7), rgba(255, 255, 255, 0.96));
+}
+
+.stat-grid strong {
+  color: var(--primary);
+  font-size: 32px;
+  line-height: 1;
+}
+
+.stat-grid span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .work-card {
   background: #fff;
   border: 1px solid var(--line);
@@ -890,6 +1052,19 @@ tbody tr:hover {
   }
 }
 
+@keyframes waterPulse {
+  from {
+    opacity: 0.82;
+    width: 10px;
+    height: 10px;
+  }
+  to {
+    opacity: 0;
+    width: 180px;
+    height: 180px;
+  }
+}
+
 @media (max-width: 860px) {
   .topbar {
     align-items: flex-start;
@@ -897,9 +1072,11 @@ tbody tr:hover {
   }
 
   .hero-view,
+  .location-band,
   .form-shell,
   .dashboard-grid,
-  .workspace-grid {
+  .workspace-grid,
+  .admin-grid {
     grid-template-columns: 1fr;
   }
 
@@ -911,6 +1088,10 @@ tbody tr:hover {
 
   .hero-view {
     min-height: auto;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .form-shell aside {
@@ -952,6 +1133,10 @@ tbody tr:hover {
 
   .saved-profile,
   .saved-profile dl {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-grid {
     grid-template-columns: 1fr;
   }
 }

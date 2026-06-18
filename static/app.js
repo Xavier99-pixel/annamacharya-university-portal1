@@ -19,6 +19,8 @@ const hodCodeField = document.getElementById("hodCodeField");
 const sendOtpBtn = document.getElementById("sendOtpBtn");
 const verifyOtpBtn = document.getElementById("verifyOtpBtn");
 const otpStatus = document.getElementById("otpStatus");
+const adminKeyForm = document.getElementById("adminKeyForm");
+const refreshAdminBtn = document.getElementById("refreshAdminBtn");
 
 document.getElementById("enterPortal").addEventListener("click", () => {
   splash.style.transition = "opacity 520ms ease, transform 520ms ease";
@@ -162,6 +164,11 @@ document.getElementById("facultyAttendanceForm").addEventListener("submit", asyn
 
 document.getElementById("studentSearch").addEventListener("input", renderStudentsTable);
 document.getElementById("facultySearch").addEventListener("input", renderFacultyTable);
+adminKeyForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await loadAdminOverview();
+});
+refreshAdminBtn.addEventListener("click", loadAdminOverview);
 
 async function hydrate() {
   try {
@@ -181,6 +188,9 @@ function showView(id) {
     id = "login";
   }
   views.forEach((view) => view.classList.toggle("is-hidden", view.id !== id));
+  document.querySelectorAll(".landing-only").forEach((section) => {
+    section.classList.toggle("is-hidden", id !== "roles");
+  });
   document.querySelectorAll(".topbar nav button").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.view === id);
   });
@@ -250,6 +260,63 @@ async function renderWorkspace(user) {
     await Promise.all([loadStudents(), loadFaculty()]);
     showView("hod-dashboard");
   }
+}
+
+async function loadAdminOverview() {
+  const key = document.getElementById("adminKey").value.trim();
+  if (!key) {
+    notify("Enter admin key to open live monitor.", "error");
+    return;
+  }
+  const response = await fetch(`/api/admin/overview?key=${encodeURIComponent(key)}`);
+  const result = await response.json();
+  if (!result.ok) {
+    notify(result.message || "Could not load admin monitor.", "error");
+    return;
+  }
+  renderAdminOverview(result);
+  notify("Live database monitor refreshed.", "success");
+}
+
+function renderAdminOverview(result) {
+  const counts = result.counts || {};
+  document.getElementById("adminDbPath").textContent = `Active database: ${result.database_path}`;
+  document.getElementById("adminCounts").innerHTML = [
+    ["Students", counts.student || 0],
+    ["Faculty", counts.faculty || 0],
+    ["HODs", counts.hod || 0],
+    ["Total", result.total_users || 0],
+  ].map(([label, value]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("");
+
+  document.getElementById("adminUsersTable").innerHTML = (result.recent_users || []).map((user) => {
+    const loginId = user.roll_number || user.faculty_code || user.hod_code || "";
+    const course = [user.course, user.branch, user.year, user.semester].filter(Boolean).join(" · ");
+    return `
+      <tr>
+        <td>${escapeHtml(user.id)}</td>
+        <td>${escapeHtml(roleLabel(user.role))}</td>
+        <td>${escapeHtml(user.name)}</td>
+        <td>${escapeHtml(loginId)}</td>
+        <td>${escapeHtml(user.phone_number || "-")}${user.phone_verified ? " · verified" : ""}</td>
+        <td>${escapeHtml(course || "-")}</td>
+        <td>${escapeHtml(formatDate(user.created_at))}</td>
+      </tr>
+    `;
+  }).join("") || emptyRow(7, "No users found in this running database.");
+
+  document.getElementById("adminRecordsTable").innerHTML = (result.student_records || []).map((record) => `
+    <tr>
+      <td>${escapeHtml(record.roll_number)}</td>
+      <td>${escapeHtml(record.name)}</td>
+      <td>${escapeHtml([record.course, record.branch].filter(Boolean).join(" · "))}</td>
+      <td>${escapeHtml(record.attendance || 0)}%</td>
+      <td>${escapeHtml(record.internal_marks || 0)}</td>
+      <td>${escapeHtml(record.external_marks || 0)}</td>
+      <td>${escapeHtml(record.marks || 0)}</td>
+      <td>${escapeHtml(record.cgpa || 0)}</td>
+      <td>${escapeHtml(record.performance || "Not updated")}</td>
+    </tr>
+  `).join("") || emptyRow(9, "No student academic records found.");
 }
 
 async function renderStudentDashboard(user) {
@@ -476,4 +543,33 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function initCampusRipple() {
+  const surface = document.getElementById("campusRipple");
+  if (!surface) return;
+  let lastRipple = 0;
+  const move = (event) => {
+    const rect = surface.getBoundingClientRect();
+    const point = event.touches?.[0] || event;
+    const x = point.clientX - rect.left;
+    const y = point.clientY - rect.top;
+    surface.style.setProperty("--ripple-x", `${x}px`);
+    surface.style.setProperty("--ripple-y", `${y}px`);
+    surface.classList.add("is-active");
+
+    const now = Date.now();
+    if (now - lastRipple < 140) return;
+    lastRipple = now;
+    const ring = document.createElement("span");
+    ring.className = "water-ring";
+    ring.style.left = `${x}px`;
+    ring.style.top = `${y}px`;
+    surface.appendChild(ring);
+    ring.addEventListener("animationend", () => ring.remove(), { once: true });
+  };
+  surface.addEventListener("pointermove", move);
+  surface.addEventListener("touchmove", move, { passive: true });
+  surface.addEventListener("pointerleave", () => surface.classList.remove("is-active"));
+}
+
+initCampusRipple();
 hydrate();

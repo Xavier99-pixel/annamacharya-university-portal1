@@ -94,7 +94,7 @@ Create a HOD verification code:
 python3 manage.py add-hod-code AU-HOD-CSE-2026 --label "CSE HOD verification"
 ```
 
-Use a faculty code plus a HOD code in the HOD registration flow.
+Use only the HOD code in the HOD registration flow. The HOD also logs in with that HOD code.
 
 Disable a code:
 
@@ -141,6 +141,15 @@ Start Command: HOST=0.0.0.0 DATABASE_PATH=/tmp/annamacharya_portal.sqlite3 pytho
 5. Do not add a disk if you want free deployment.
 6. Deploy the service.
 7. Open the Render URL.
+
+Optional but recommended for the Admin Monitor:
+
+```text
+Environment Variable: ADMIN_KEY
+Value: choose-your-private-admin-key
+```
+
+If you do not set `ADMIN_KEY`, the demo key is `AU-ADMIN-2026`.
 
 For permanent production data later, upgrade to a persistent disk or use a cloud database.
 

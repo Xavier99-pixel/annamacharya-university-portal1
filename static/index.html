@@ -40,6 +40,7 @@
       <nav>
         <button data-view="roles">Roles</button>
         <button data-view="login">Login</button>
+        <button data-view="admin-monitor">Admin Monitor</button>
       </nav>
     </header>
 
@@ -61,12 +62,26 @@
           </div>
         </div>
         <div class="campus-panel">
-          <img src="/images/a.jpeg" alt="Landscape view of Annamacharya University campus">
+          <div id="campusRipple" class="campus-ripple" aria-label="Interactive Annamacharya University campus photo">
+            <img src="/images/a.jpeg" alt="Landscape view of Annamacharya University campus">
+            <span class="ripple-hint"><span class="material-symbols-outlined">touch_app</span> Move cursor on campus</span>
+          </div>
           <div>
             <strong>Annamacharya University</strong>
             <span>Empowering Minds, Shaping Futures</span>
             <a class="campus-link" href="https://annamacharyauniversity.edu.in/" target="_blank" rel="noreferrer">annamacharyauniversity.edu.in</a>
           </div>
+        </div>
+      </section>
+
+      <section class="location-band landing-only">
+        <div>
+          <p class="eyebrow">Campus Location</p>
+          <h2>Annamacharya University on Maps</h2>
+          <p>Use this embedded map during your project review to show the real university location directly inside the portal.</p>
+        </div>
+        <div class="map-frame">
+          <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3867.4635999053808!2d79.13836309999999!3d14.2261569!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bb303d1a2ec65b1%3A0xeec3de65ba046b7!2sAnnamacharya%20University!5e0!3m2!1sen!2sin!4v1781759678742!5m2!1sen!2sin" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Annamacharya University location map"></iframe>
         </div>
       </section>
 
@@ -170,6 +185,54 @@
             <span class="material-symbols-outlined">login</span>
           </button>
         </form>
+      </section>
+
+      <section id="admin-monitor" class="view dashboard workspace is-hidden">
+        <div class="workspace-header">
+          <div>
+            <p class="eyebrow">Creator Workspace</p>
+            <h2>Live Database Monitor</h2>
+            <p>View users from the same SQLite database used by the running website. Local DataGrip shows only your Mac database; this panel shows the deployed website database when opened on Render.</p>
+          </div>
+        </div>
+        <div class="admin-grid">
+          <form id="adminKeyForm" class="portal-form work-card">
+            <h3>Open Monitor</h3>
+            <label>Admin Key<input id="adminKey" name="admin_key" required type="password" placeholder="Demo: AU-ADMIN-2026"></label>
+            <button class="primary-btn" type="submit"><span class="material-symbols-outlined">database</span>Load Live Users</button>
+            <p id="adminDbPath" class="admin-note">Enter the admin key to inspect the active database.</p>
+          </form>
+          <section class="work-card admin-stats">
+            <h3>User Counts</h3>
+            <div id="adminCounts" class="stat-grid">
+              <div><strong>0</strong><span>Students</span></div>
+              <div><strong>0</strong><span>Faculty</span></div>
+              <div><strong>0</strong><span>HODs</span></div>
+              <div><strong>0</strong><span>Total</span></div>
+            </div>
+          </section>
+        </div>
+        <section class="work-card">
+          <div class="table-head">
+            <h3>Recent Registered Users</h3>
+            <button id="refreshAdminBtn" class="ghost-btn" type="button"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Role</th><th>Name</th><th>Login ID</th><th>Phone</th><th>Course/Dept</th><th>Registered</th></tr></thead>
+              <tbody id="adminUsersTable"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="work-card">
+          <h3>Student Academic Snapshot</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Roll No</th><th>Name</th><th>Course</th><th>Attendance</th><th>Internal</th><th>External</th><th>Total</th><th>CGPA</th><th>Performance</th></tr></thead>
+              <tbody id="adminRecordsTable"></tbody>
+            </table>
+          </div>
+        </section>
       </section>
 
       <section id="student-dashboard" class="view dashboard is-hidden">
@@ -288,6 +351,6 @@
     </main>
   </div>
 
-  <script src="/app.js?v=20260617-role-workspaces"></script>
+  <script src="/app.js?v=20260618-admin-map-ripple"></script>
 </body>
 </html>

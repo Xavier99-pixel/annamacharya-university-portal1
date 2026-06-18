@@ -114,3 +114,21 @@ python3 manage.py tables
 ## Notes
 
 The database is created automatically as `annamacharya_portal.sqlite3`. Local DataGrip sees only your local database file. Free Render deployment uses a separate temporary SQLite file on the hosted server, so users registered on the Render URL will not automatically appear in your local DataGrip.
+
+## Live Database Monitor
+
+If you register users on the deployed Render website, open the website's `Admin Monitor` tab to see the users in that running website database.
+
+Default demo admin key:
+
+```text
+AU-ADMIN-2026
+```
+
+For a real demo, set a private Render environment variable:
+
+```text
+ADMIN_KEY=your-private-key
+```
+
+Then use that private key in the Admin Monitor. DataGrip is still useful for your local Mac database, but the deployed website has its own database file.
