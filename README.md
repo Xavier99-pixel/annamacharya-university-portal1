@@ -21,7 +21,7 @@ Local development can still use demo OTPs. For the deployed website, configure a
 
 Textbelt supports a public demo key named `textbelt` for limited real SMS testing. This is the best free option for a college project demo because it does not require a paid Twilio number.
 
-Add these Render environment variables:
+The portal now automatically uses Textbelt on Render when no `SMS_PROVIDER` is set. You can still add these Render environment variables explicitly:
 
 ```text
 SMS_PROVIDER=textbelt

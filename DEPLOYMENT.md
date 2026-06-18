@@ -151,7 +151,7 @@ Value: choose-your-private-admin-key
 
 On Render, set `ADMIN_KEY`. If you do not set it, deployed admin actions are blocked.
 
-For free real-SMS demo OTP, add:
+For free real-SMS demo OTP, the portal automatically uses Textbelt on Render when `SMS_PROVIDER` is not set. You can also add it manually:
 
 ```text
 SMS_PROVIDER=textbelt

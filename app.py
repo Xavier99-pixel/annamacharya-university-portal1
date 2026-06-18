@@ -28,16 +28,17 @@ SESSION_TTL_DAYS = 7
 OTP_TTL_MINUTES = 10
 OTP_RESEND_SECONDS = 60
 OTP_HOURLY_LIMIT = 5
-SMS_PROVIDER = os.environ.get("SMS_PROVIDER", "demo").strip().lower()
+RUNNING_ON_RENDER = any(
+    os.environ.get(key)
+    for key in ("RENDER", "RENDER_SERVICE_ID", "RENDER_EXTERNAL_URL")
+)
+DEFAULT_SMS_PROVIDER = "textbelt" if RUNNING_ON_RENDER else "demo"
+SMS_PROVIDER = os.environ.get("SMS_PROVIDER", DEFAULT_SMS_PROVIDER).strip().lower()
 SMS_COUNTRY_CODE = os.environ.get("SMS_COUNTRY_CODE", "+91").strip() or "+91"
 SMS_DEMO_MODE = os.environ.get("SMS_DEMO_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
 DEFAULT_FACULTY_CODES = ("AU-FAC-2026", "AU-STAFF-1001", "AITS-FAC-7788")
 DEFAULT_HOD_CODES = ("AU-HOD-CSE-2026", "AU-HOD-MBA-2026", "AU-HOD-ADMIN-2026")
 LOCAL_ADMIN_KEY = "AU-ADMIN-2026"
-RUNNING_ON_RENDER = any(
-    os.environ.get(key)
-    for key in ("RENDER", "RENDER_SERVICE_ID", "RENDER_EXTERNAL_URL")
-)
 ADMIN_KEY = os.environ.get("ADMIN_KEY") or ("" if RUNNING_ON_RENDER else LOCAL_ADMIN_KEY)
 
 
