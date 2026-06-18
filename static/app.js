@@ -28,6 +28,8 @@ const adminRecordForm = document.getElementById("adminRecordForm");
 const downloadUsersCsv = document.getElementById("downloadUsersCsv");
 const downloadAcademicCsv = document.getElementById("downloadAcademicCsv");
 const downloadSqliteBackup = document.getElementById("downloadSqliteBackup");
+const restoreDatabaseForm = document.getElementById("restoreDatabaseForm");
+const restoreDatabaseFile = document.getElementById("restoreDatabaseFile");
 const chatbotToggle = document.getElementById("chatbotToggle");
 const chatbotPanel = document.getElementById("chatbotPanel");
 const chatbotClose = document.getElementById("chatbotClose");
@@ -186,6 +188,7 @@ adminRecordForm.addEventListener("submit", handleAdminRecord);
 downloadUsersCsv.addEventListener("click", () => downloadAdminExport("users.csv"));
 downloadAcademicCsv.addEventListener("click", () => downloadAdminExport("academic.csv"));
 downloadSqliteBackup.addEventListener("click", () => downloadAdminExport("database.sqlite3"));
+restoreDatabaseForm.addEventListener("submit", handleRestoreDatabase);
 chatbotToggle.addEventListener("click", toggleChatbot);
 chatbotClose.addEventListener("click", closeChatbot);
 chatbotForm.addEventListener("submit", handleChatbotSubmit);
@@ -440,6 +443,36 @@ function downloadAdminExport(filename) {
   }
   window.location.href = `/api/admin/export/${filename}?key=${encodeURIComponent(key)}`;
   notify("Preparing secure download from the live database.", "success");
+}
+
+async function handleRestoreDatabase(event) {
+  event.preventDefault();
+  const key = adminKey();
+  const [file] = restoreDatabaseFile.files;
+  if (!key) {
+    notify("Enter admin key before restoring live data.", "error");
+    return;
+  }
+  if (!file) {
+    notify("Choose a SQLite backup file first.", "error");
+    return;
+  }
+  const confirmed = window.confirm("Restore this backup to the live database? This replaces the current live data.");
+  if (!confirmed) return;
+
+  const response = await fetch(`/api/admin/restore/database.sqlite3?key=${encodeURIComponent(key)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/vnd.sqlite3" },
+    body: file,
+  });
+  const result = await response.json();
+  if (!result.ok) {
+    notify(result.message || "Could not restore database.", "error");
+    return;
+  }
+  restoreDatabaseForm.reset();
+  notify(result.message, "success");
+  await loadAdminOverview();
 }
 
 function adminKey() {
@@ -717,7 +750,7 @@ function answerChatbot(question) {
     return "Admin flow: open the hidden creator URL /admin, enter ADMIN_KEY, click Load Live Users, then manage live Render data. To inspect live users in DataGrip, download the SQLite Backup from admin export and open that file in DataGrip.";
   }
   if (q.includes("datagrip") || q.includes("sqlite")) {
-    return "DataGrip reads only the SQLite file you open. For live Render registrations, open /admin, download SQLite Backup, then open the downloaded annamacharya_live_database.sqlite3 file in DataGrip.";
+    return "DataGrip reads only the SQLite file you open. For live Render registrations, open /admin, download SQLite Backup, then open it in DataGrip. To put data back after redeploy, upload the same backup with Restore Live Database.";
   }
   if (q.includes("architecture") || q.includes("backend") || q.includes("frontend") || q.includes("api")) {
     return "Architecture: HTML/CSS/JavaScript frontend sends JSON with fetch() to Python app.py API routes. Python validates roles, hashes passwords, manages sessions, and reads/writes SQLite tables.";

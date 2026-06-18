@@ -374,6 +374,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 self.update_faculty_attendance()
             elif parsed.path == "/api/admin/action":
                 self.admin_action()
+            elif parsed.path == "/api/admin/restore/database.sqlite3":
+                self.admin_restore_database(parsed.query)
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
         except ValueError as exc:
@@ -849,6 +851,43 @@ class PortalHandler(SimpleHTTPRequestHandler):
             if backup_path and backup_path.exists():
                 backup_path.unlink()
 
+    def admin_restore_database(self, query: str) -> None:
+        verify_admin_query_key(query)
+        length = int(self.headers.get("Content-Length", "0"))
+        if length <= 0:
+            raise ValueError("Choose a SQLite backup file to restore.")
+        if length > 25_000_000:
+            raise ValueError("Backup file is too large for this demo restore limit.")
+
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        restore_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".sqlite3", delete=False, dir=str(DB_PATH.parent)) as tmp:
+                restore_path = Path(tmp.name)
+                tmp.write(self.rfile.read(length))
+
+            validate_sqlite_backup(restore_path)
+            os.replace(restore_path, DB_PATH)
+            init_db()
+
+            with connect_db() as db:
+                total = db.execute("SELECT COUNT(*) AS count FROM users").fetchone()["count"]
+                role_rows = db.execute(
+                    "SELECT role, COUNT(*) AS total FROM users GROUP BY role ORDER BY role"
+                ).fetchall()
+
+            self.send_json(
+                {
+                    "ok": True,
+                    "message": f"Database restored successfully. {total} users are now available.",
+                    "total_users": total,
+                    "counts": {row["role"]: row["total"] for row in role_rows},
+                }
+            )
+        finally:
+            if restore_path and restore_path.exists():
+                restore_path.unlink()
+
     def admin_action(self) -> None:
         data = self.read_json()
         verify_admin_key(data.get("admin_key"))
@@ -1027,6 +1066,33 @@ def verify_admin_query_key(query: str) -> None:
     params = parse_qs(query)
     key = (params.get("key") or [""])[0]
     verify_admin_key(key)
+
+
+def validate_sqlite_backup(path: Path) -> None:
+    required_tables = {
+        "users",
+        "academic_records",
+        "faculty_attendance",
+        "faculty_codes",
+        "hod_codes",
+        "otp_verifications",
+        "sessions",
+    }
+    try:
+        with sqlite3.connect(path) as db:
+            integrity = db.execute("PRAGMA integrity_check").fetchone()[0]
+            if integrity != "ok":
+                raise ValueError("SQLite integrity check failed.")
+            rows = db.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+    except sqlite3.DatabaseError as exc:
+        raise ValueError("Uploaded file is not a valid SQLite database.") from exc
+
+    tables = {row[0] for row in rows}
+    missing = sorted(required_tables - tables)
+    if missing:
+        raise ValueError(f"Backup does not match this portal schema. Missing: {', '.join(missing)}.")
 
 
 def parse_positive_int(value, label: str) -> int:

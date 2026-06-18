@@ -254,6 +254,11 @@
             <button id="downloadAcademicCsv" class="ghost-btn" type="button"><span class="material-symbols-outlined">analytics</span>Academic CSV</button>
             <button id="downloadSqliteBackup" class="primary-btn" type="button"><span class="material-symbols-outlined">database</span>SQLite Backup</button>
           </div>
+          <form id="restoreDatabaseForm" class="restore-form">
+            <label>Restore SQLite Backup<input id="restoreDatabaseFile" type="file" accept=".sqlite3,.db,application/vnd.sqlite3"></label>
+            <button class="ghost-btn" type="submit"><span class="material-symbols-outlined">upload_file</span>Restore Live Database</button>
+          </form>
+          <p class="admin-note">Use restore only after a free Render redeploy resets the database. It replaces the current live database with your selected backup.</p>
         </section>
         <section class="work-card admin-secure is-hidden">
           <h3>Admin Manipulations</h3>
@@ -434,6 +439,6 @@
     </section>
   </div>
 
-  <script src="/app.js?v=20260618-live-export"></script>
+  <script src="/app.js?v=20260618-live-export-restore"></script>
 </body>
 </html>

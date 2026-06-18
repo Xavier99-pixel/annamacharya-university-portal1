@@ -179,6 +179,24 @@ To inspect live Render registrations in DataGrip:
 
 For quick spreadsheet-style review, use `Users CSV` or `Academic CSV`. For full DBMS inspection with tables, joins, and SQL commands, use `SQLite Backup`. Keep SQLite backups private because they include the full database, including account/security tables.
 
+### Restoring Students After A Free Render Redeploy
+
+Opening a downloaded backup in DataGrip does not automatically restore the live website. DataGrip only shows your local copy. To bring the users back to the deployed website, upload the backup through the hidden admin console.
+
+Recommended free-hosting routine:
+
+1. Before redeploying, open `/admin`
+2. Enter your `ADMIN_KEY`
+3. Click `SQLite Backup` and save `annamacharya_live_database.sqlite3`
+4. Redeploy the website
+5. Open `/admin` again
+6. Enter your `ADMIN_KEY`
+7. Choose the saved `.sqlite3` file in `Restore SQLite Backup`
+8. Click `Restore Live Database`
+9. Click `Load Live Users` and confirm the students/faculty/HODs returned
+
+Restore replaces the current live database with the uploaded backup. If new users registered after the backup was downloaded, export a fresh backup before restoring so you do not overwrite newer data.
+
 Example SQL after opening the downloaded backup in DataGrip:
 
 ```sql
