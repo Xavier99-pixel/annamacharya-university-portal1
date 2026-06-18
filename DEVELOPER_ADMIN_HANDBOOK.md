@@ -249,7 +249,17 @@ expires_at
 created_at
 ```
 
-Real SMS OTP is now provider-ready. Configure Twilio on Render:
+Real SMS OTP is now provider-ready. Best free demo setup on Render:
+
+```text
+SMS_PROVIDER=textbelt
+SMS_COUNTRY_CODE=+91
+TEXTBELT_KEY=textbelt
+```
+
+Textbelt free demo SMS is limited, so use it carefully during evaluation.
+
+Twilio trial or paid setup:
 
 ```text
 SMS_PROVIDER=twilio

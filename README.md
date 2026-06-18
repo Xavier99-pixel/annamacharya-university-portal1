@@ -2,7 +2,7 @@
 
 Student, faculty, and HOD login hub with local Python, SQLite authentication, profile photos, role-based dashboards, database-managed verification codes, and academic record management.
 
-Student registration includes phone number + OTP verification. The backend can send real SMS OTPs through Twilio or a generic SMS webhook when provider credentials are configured.
+Student registration includes phone number + OTP verification. The backend can send real SMS OTPs through Textbelt free demo SMS, Twilio, or a generic SMS webhook when provider credentials are configured.
 
 ## Run Locally
 
@@ -17,9 +17,23 @@ Open `http://127.0.0.1:8000`.
 
 Local development can still use demo OTPs. For the deployed website, configure a real SMS provider in Render environment variables.
 
+### Best Free Demo Option: Textbelt
+
+Textbelt supports a public demo key named `textbelt` for limited real SMS testing. This is the best free option for a college project demo because it does not require a paid Twilio number.
+
+Add these Render environment variables:
+
+```text
+SMS_PROVIDER=textbelt
+SMS_COUNTRY_CODE=+91
+TEXTBELT_KEY=textbelt
+```
+
+Free Textbelt demo mode is limited, commonly 1 SMS per day. Use it to prove real OTP delivery during evaluation, not for many students.
+
 ### Twilio
 
-Create a Twilio account, buy or activate an SMS-capable sender number, then add these Render environment variables:
+Twilio is better for production, but it is not the best free-only path. If you later use Twilio trial or paid SMS, add:
 
 ```text
 SMS_PROVIDER=twilio

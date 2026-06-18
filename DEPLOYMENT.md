@@ -151,7 +151,17 @@ Value: choose-your-private-admin-key
 
 On Render, set `ADMIN_KEY`. If you do not set it, deployed admin actions are blocked.
 
-For real student SMS OTP, add:
+For free real-SMS demo OTP, add:
+
+```text
+SMS_PROVIDER=textbelt
+SMS_COUNTRY_CODE=+91
+TEXTBELT_KEY=textbelt
+```
+
+Textbelt free demo SMS is limited, so use it for evaluation/testing only.
+
+If you later use Twilio trial or paid SMS, add:
 
 ```text
 SMS_PROVIDER=twilio

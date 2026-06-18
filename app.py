@@ -1325,27 +1325,59 @@ def send_otp_sms(phone_number: str, otp_code: str) -> dict:
         return {
             "mode": "demo",
             "masked_to": mask_phone(phone_number),
-            "message": "Demo OTP generated. Configure SMS_PROVIDER=twilio for real SMS delivery.",
+            "message": "Demo OTP generated. Configure SMS_PROVIDER=textbelt for free real-SMS testing.",
         }
 
     message = otp_sms_body(otp_code)
-    if SMS_PROVIDER == "twilio":
+    if SMS_PROVIDER == "textbelt":
+        send_textbelt_sms(phone_number, message)
+    elif SMS_PROVIDER == "twilio":
         send_twilio_sms(phone_number, message)
     elif SMS_PROVIDER == "webhook":
         send_webhook_sms(phone_number, message, otp_code)
     elif SMS_PROVIDER in {"", "demo"}:
         raise ValueError(
-            "Real SMS is not configured. Set SMS_PROVIDER=twilio with Twilio credentials, "
+            "Real SMS is not configured. Set SMS_PROVIDER=textbelt for free demo SMS, "
+            "SMS_PROVIDER=twilio with Twilio credentials, "
             "or set SMS_DEMO_MODE=true only for testing."
         )
     else:
-        raise ValueError(f"Unsupported SMS_PROVIDER: {SMS_PROVIDER}. Use twilio or webhook.")
+        raise ValueError(f"Unsupported SMS_PROVIDER: {SMS_PROVIDER}. Use textbelt, twilio or webhook.")
 
     return {
         "mode": SMS_PROVIDER,
         "masked_to": mask_phone(phone_number),
         "message": f"OTP sent by SMS to {mask_phone(phone_number)}.",
     }
+
+
+def send_textbelt_sms(phone_number: str, message: str) -> None:
+    key = os.environ.get("TEXTBELT_KEY", "textbelt").strip() or "textbelt"
+    body = urllib.parse.urlencode(
+        {
+            "phone": format_sms_phone(phone_number),
+            "message": message,
+            "key": key,
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request("https://textbelt.com/text", data=body, method="POST")
+    request.add_header("Content-Type", "application/x-www-form-urlencoded")
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore")[:200]
+        raise ValueError(f"Textbelt SMS failed: {details or exc.reason}") from exc
+    except urllib.error.URLError as exc:
+        raise ValueError(f"Could not reach Textbelt SMS service: {exc.reason}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError("Textbelt returned an unreadable SMS response.") from exc
+
+    if not payload.get("success"):
+        error = payload.get("error") or "Textbelt did not send the SMS."
+        quota = payload.get("quotaRemaining")
+        suffix = f" Quota remaining: {quota}." if quota is not None else ""
+        raise ValueError(f"Textbelt SMS failed: {error}.{suffix}")
 
 
 def send_twilio_sms(phone_number: str, message: str) -> None:

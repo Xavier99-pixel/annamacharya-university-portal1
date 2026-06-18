@@ -928,7 +928,7 @@ function answerChatbot(question) {
     return "Architecture: HTML/CSS/JavaScript frontend sends JSON with fetch() to Python app.py API routes. Python validates roles, hashes passwords, manages sessions, and reads/writes SQLite tables.";
   }
   if (q.includes("otp") || q.includes("phone")) {
-    return "OTP flow: student enters phone, clicks Send OTP, backend stores a 6 digit OTP, then sends it by SMS when SMS_PROVIDER is configured. Local testing can still use demo mode.";
+    return "OTP flow: student enters phone, clicks Send OTP, backend stores a 6 digit OTP, then sends it by SMS. Free demo setup uses SMS_PROVIDER=textbelt and TEXTBELT_KEY=textbelt; local testing can still use demo mode.";
   }
   if (q.includes("deploy") || q.includes("render")) {
     return "Deployment: push latest GitHub main branch, then deploy on Render. Free Render uses temporary SQLite at /tmp, so data can reset on redeploy. For permanent data, use a persistent disk or cloud database.";
