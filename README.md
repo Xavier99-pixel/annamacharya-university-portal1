@@ -132,3 +132,14 @@ ADMIN_KEY=your-private-key
 ```
 
 Then use that private key in the Admin Monitor. DataGrip is still useful for your local Mac database, but the deployed website has its own database file.
+
+### Admin Monitor Manipulations
+
+Inside the website, open `Admin Monitor`, enter your admin key, then use:
+
+- `Load Live Users`: refresh counts, recent users, and student records from the active website database
+- `Delete Fake/Test User`: enter a user ID from the recent users table, then delete that account
+- `Manage Faculty/HOD Codes`: create/reactivate or deactivate faculty and HOD registration codes
+- `Update Student Record`: enter a student roll number and update attendance, internal marks, external marks, CGPA, and performance
+
+Every manipulation requires the admin key. After each successful action, the monitor refreshes automatically so you can immediately see the database change.

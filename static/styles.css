@@ -275,92 +275,14 @@ main {
   box-shadow: 0 20px 60px rgba(26, 54, 93, 0.13);
 }
 
-.campus-ripple {
-  --ripple-x: 50%;
-  --ripple-y: 50%;
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  cursor: crosshair;
-}
-
-.campus-ripple::before,
-.campus-ripple::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 180ms ease;
-}
-
-.campus-ripple::before {
-  z-index: 1;
-  background:
-    radial-gradient(circle at var(--ripple-x) var(--ripple-y), rgba(255, 255, 255, 0.58), transparent 8rem),
-    radial-gradient(circle at var(--ripple-x) var(--ripple-y), rgba(102, 175, 254, 0.34), transparent 13rem);
-  mix-blend-mode: screen;
-}
-
-.campus-ripple::after {
-  z-index: 2;
-  background:
-    repeating-radial-gradient(circle at var(--ripple-x) var(--ripple-y), rgba(255, 255, 255, 0.36) 0 2px, transparent 3px 12px);
-  filter: blur(0.4px);
-}
-
-.campus-ripple.is-active::before,
-.campus-ripple.is-active::after {
-  opacity: 1;
-}
-
-.campus-ripple img {
+.campus-photo {
   width: 100%;
   aspect-ratio: 16 / 10;
   display: block;
   object-fit: cover;
-  transition: transform 460ms ease, filter 460ms ease;
 }
 
-.campus-ripple.is-active img {
-  transform: scale(1.025);
-  filter: saturate(1.1) contrast(1.04);
-}
-
-.water-ring {
-  position: absolute;
-  z-index: 3;
-  width: 16px;
-  height: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 50%;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  animation: waterPulse 900ms ease-out forwards;
-}
-
-.ripple-hint {
-  position: absolute;
-  left: 14px;
-  bottom: 14px;
-  z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  background: rgba(0, 32, 69, 0.78);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  backdrop-filter: blur(12px);
-}
-
-.ripple-hint .material-symbols-outlined {
-  font-size: 17px;
-}
-
-.campus-panel div {
+.campus-panel-body {
   display: grid;
   gap: 8px;
   padding: 22px;
@@ -898,6 +820,25 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
+.admin-actions {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-actions form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.admin-actions h4 {
+  margin: 0;
+  color: var(--primary);
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1049,19 +990,6 @@ tbody tr:hover {
   }
   to {
     opacity: 1;
-  }
-}
-
-@keyframes waterPulse {
-  from {
-    opacity: 0.82;
-    width: 10px;
-    height: 10px;
-  }
-  to {
-    opacity: 0;
-    width: 180px;
-    height: 180px;
   }
 }
 

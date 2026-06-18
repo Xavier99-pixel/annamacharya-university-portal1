@@ -355,6 +355,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 self.update_student_record()
             elif parsed.path == "/api/faculty-attendance":
                 self.update_faculty_attendance()
+            elif parsed.path == "/api/admin/action":
+                self.admin_action()
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
         except ValueError as exc:
@@ -699,8 +701,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
     def admin_overview(self, query: str) -> None:
         params = parse_qs(query)
         key = (params.get("key") or [""])[0]
-        if not hmac.compare_digest(key, ADMIN_KEY):
-            raise ValueError("Valid admin key is required.")
+        verify_admin_key(key)
         with connect_db() as db:
             role_rows = db.execute(
                 """
@@ -749,6 +750,99 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 "note": "This shows the database used by the running website instance.",
             }
         )
+
+    def admin_action(self) -> None:
+        data = self.read_json()
+        verify_admin_key(data.get("admin_key"))
+        action = clean(data.get("action"))
+
+        if action == "delete_user":
+            user_id = parse_positive_int(data.get("user_id"), "User ID")
+            with connect_db() as db:
+                db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+                db.execute("DELETE FROM academic_records WHERE student_id = ?", (user_id,))
+                db.execute("DELETE FROM faculty_attendance WHERE faculty_id = ?", (user_id,))
+                cursor = db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            if not cursor.rowcount:
+                raise ValueError("No user found with that ID.")
+            self.send_json({"ok": True, "message": f"Deleted user ID {user_id}."})
+            return
+
+        if action in {"create_code", "deactivate_code"}:
+            code_type = clean(data.get("code_type")).lower()
+            code = clean(data.get("code")).upper()
+            label = clean(data.get("label")) or "Admin managed code"
+            if code_type not in {"faculty", "hod"}:
+                raise ValueError("Choose faculty or HOD code type.")
+            if not code:
+                raise ValueError("Code is required.")
+            table = "faculty_codes" if code_type == "faculty" else "hod_codes"
+            with connect_db() as db:
+                if action == "create_code":
+                    db.execute(
+                        f"""
+                        INSERT INTO {table} (code, label, active, created_at)
+                        VALUES (?, ?, 1, ?)
+                        ON CONFLICT(code) DO UPDATE SET label = excluded.label, active = 1
+                        """,
+                        (code, label, utc_now().isoformat()),
+                    )
+                    message = f"{code_type.title()} code active: {code}."
+                else:
+                    cursor = db.execute(f"UPDATE {table} SET active = 0 WHERE code = ?", (code,))
+                    if not cursor.rowcount:
+                        raise ValueError("Code not found.")
+                    message = f"{code_type.title()} code deactivated: {code}."
+            self.send_json({"ok": True, "message": message})
+            return
+
+        if action == "update_student_record":
+            roll_number = clean(data.get("roll_number")).upper()
+            if not roll_number:
+                raise ValueError("Student roll number is required.")
+            attendance = parse_score(data.get("attendance"), "Attendance", 0, 100)
+            internal_marks = parse_score(data.get("internal_marks"), "Internal marks", 0, 100)
+            external_marks = parse_score(data.get("external_marks"), "External marks", 0, 100)
+            marks = round((internal_marks + external_marks) / 2, 2)
+            cgpa = parse_score(data.get("cgpa"), "CGPA", 0, 10)
+            performance = clean(data.get("performance")) or "Not updated"
+            with connect_db() as db:
+                student = db.execute(
+                    "SELECT id, name FROM users WHERE role = 'student' AND roll_number = ?",
+                    (roll_number,),
+                ).fetchone()
+                if not student:
+                    raise ValueError("No student found for that roll number.")
+                db.execute(
+                    """
+                    INSERT INTO academic_records (
+                        student_id, attendance, internal_marks, external_marks, marks, cgpa, performance, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(student_id) DO UPDATE SET
+                        attendance = excluded.attendance,
+                        internal_marks = excluded.internal_marks,
+                        external_marks = excluded.external_marks,
+                        marks = excluded.marks,
+                        cgpa = excluded.cgpa,
+                        performance = excluded.performance,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        student["id"],
+                        attendance,
+                        internal_marks,
+                        external_marks,
+                        marks,
+                        cgpa,
+                        performance,
+                        utc_now().isoformat(),
+                    ),
+                )
+            self.send_json({"ok": True, "message": f"Updated record for {student['name']}."})
+            return
+
+        raise ValueError("Unknown admin action.")
 
     def send_json(self, payload: dict, status: int = HTTPStatus.OK, cookie: str | None = None) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -807,6 +901,21 @@ def validate_staff_codes(role: str, faculty_code: str | None, hod_code: str | No
         ).fetchone()
         if not valid_code:
             raise ValueError("Invalid university faculty code.")
+
+
+def verify_admin_key(value) -> None:
+    if not hmac.compare_digest(clean(value), ADMIN_KEY):
+        raise ValueError("Valid admin key is required.")
+
+
+def parse_positive_int(value, label: str) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} must be a number.") from exc
+    if number <= 0:
+        raise ValueError(f"{label} must be greater than zero.")
+    return number
 
 
 def parse_score(value, label: str, minimum: float, maximum: float) -> float:

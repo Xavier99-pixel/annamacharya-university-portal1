@@ -62,11 +62,8 @@
           </div>
         </div>
         <div class="campus-panel">
-          <div id="campusRipple" class="campus-ripple" aria-label="Interactive Annamacharya University campus photo">
-            <img src="/images/a.jpeg" alt="Landscape view of Annamacharya University campus">
-            <span class="ripple-hint"><span class="material-symbols-outlined">touch_app</span> Move cursor on campus</span>
-          </div>
-          <div>
+          <img class="campus-photo" src="/images/a.jpeg" alt="Landscape view of Annamacharya University campus">
+          <div class="campus-panel-body">
             <strong>Annamacharya University</strong>
             <span>Empowering Minds, Shaping Futures</span>
             <a class="campus-link" href="https://annamacharyauniversity.edu.in/" target="_blank" rel="noreferrer">annamacharyauniversity.edu.in</a>
@@ -233,6 +230,38 @@
             </table>
           </div>
         </section>
+        <section class="work-card">
+          <h3>Admin Manipulations</h3>
+          <div class="admin-actions">
+            <form id="adminDeleteUserForm">
+              <h4>Delete Fake/Test User</h4>
+              <label>User ID<input name="user_id" required type="number" min="1" placeholder="Example: 7"></label>
+              <button class="ghost-btn" type="submit"><span class="material-symbols-outlined">delete</span>Delete User</button>
+            </form>
+            <form id="adminCodeForm">
+              <h4>Manage Faculty/HOD Codes</h4>
+              <div class="grid two">
+                <label>Code Type<select name="code_type" required><option value="faculty">Faculty Code</option><option value="hod">HOD Code</option></select></label>
+                <label>Action<select name="code_action" required><option value="create">Create / Reactivate</option><option value="deactivate">Deactivate</option></select></label>
+                <label>Code<input name="code" required placeholder="Example: AU-CSE-FAC-001"></label>
+                <label>Label<input name="label" placeholder="Example: CSE Faculty 001"></label>
+              </div>
+              <button class="ghost-btn" type="submit"><span class="material-symbols-outlined">vpn_key</span>Save Code</button>
+            </form>
+            <form id="adminRecordForm">
+              <h4>Update Student Record</h4>
+              <div class="grid two">
+                <label>Roll Number<input name="roll_number" required placeholder="Example: 24AFAID153"></label>
+                <label>Attendance %<input name="attendance" required type="number" min="0" max="100" step="0.01"></label>
+                <label>Internal Marks<input name="internal_marks" required type="number" min="0" max="100" step="0.01"></label>
+                <label>External Marks<input name="external_marks" required type="number" min="0" max="100" step="0.01"></label>
+                <label>CGPA<input name="cgpa" required type="number" min="0" max="10" step="0.01"></label>
+                <label>Performance<select name="performance" required><option>Excellent</option><option>Good</option><option>Average</option><option>Needs Improvement</option></select></label>
+              </div>
+              <button class="ghost-btn" type="submit"><span class="material-symbols-outlined">edit_note</span>Update Record</button>
+            </form>
+          </div>
+        </section>
       </section>
 
       <section id="student-dashboard" class="view dashboard is-hidden">
@@ -351,6 +380,6 @@
     </main>
   </div>
 
-  <script src="/app.js?v=20260618-admin-map-ripple"></script>
+  <script src="/app.js?v=20260618-admin-actions"></script>
 </body>
 </html>

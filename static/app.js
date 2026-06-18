@@ -21,6 +21,9 @@ const verifyOtpBtn = document.getElementById("verifyOtpBtn");
 const otpStatus = document.getElementById("otpStatus");
 const adminKeyForm = document.getElementById("adminKeyForm");
 const refreshAdminBtn = document.getElementById("refreshAdminBtn");
+const adminDeleteUserForm = document.getElementById("adminDeleteUserForm");
+const adminCodeForm = document.getElementById("adminCodeForm");
+const adminRecordForm = document.getElementById("adminRecordForm");
 
 document.getElementById("enterPortal").addEventListener("click", () => {
   splash.style.transition = "opacity 520ms ease, transform 520ms ease";
@@ -169,6 +172,9 @@ adminKeyForm.addEventListener("submit", async (event) => {
   await loadAdminOverview();
 });
 refreshAdminBtn.addEventListener("click", loadAdminOverview);
+adminDeleteUserForm.addEventListener("submit", handleAdminDeleteUser);
+adminCodeForm.addEventListener("submit", handleAdminCode);
+adminRecordForm.addEventListener("submit", handleAdminRecord);
 
 async function hydrate() {
   try {
@@ -263,7 +269,7 @@ async function renderWorkspace(user) {
 }
 
 async function loadAdminOverview() {
-  const key = document.getElementById("adminKey").value.trim();
+  const key = adminKey();
   if (!key) {
     notify("Enter admin key to open live monitor.", "error");
     return;
@@ -317,6 +323,60 @@ function renderAdminOverview(result) {
       <td>${escapeHtml(record.performance || "Not updated")}</td>
     </tr>
   `).join("") || emptyRow(9, "No student academic records found.");
+}
+
+async function handleAdminDeleteUser(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const result = await postJson("/api/admin/action", {
+    admin_key: adminKey(),
+    action: "delete_user",
+    user_id: data.user_id,
+  });
+  await handleAdminActionResult(result, event.currentTarget);
+}
+
+async function handleAdminCode(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const result = await postJson("/api/admin/action", {
+    admin_key: adminKey(),
+    action: data.code_action === "deactivate" ? "deactivate_code" : "create_code",
+    code_type: data.code_type,
+    code: data.code,
+    label: data.label,
+  });
+  await handleAdminActionResult(result, event.currentTarget);
+}
+
+async function handleAdminRecord(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const result = await postJson("/api/admin/action", {
+    admin_key: adminKey(),
+    action: "update_student_record",
+    roll_number: data.roll_number,
+    attendance: data.attendance,
+    internal_marks: data.internal_marks,
+    external_marks: data.external_marks,
+    cgpa: data.cgpa,
+    performance: data.performance,
+  });
+  await handleAdminActionResult(result, event.currentTarget);
+}
+
+async function handleAdminActionResult(result, form) {
+  if (!result.ok) {
+    notify(result.message || "Admin action failed.", "error");
+    return;
+  }
+  notify(result.message || "Admin action completed.", "success");
+  form.reset();
+  await loadAdminOverview();
+}
+
+function adminKey() {
+  return document.getElementById("adminKey").value.trim();
 }
 
 async function renderStudentDashboard(user) {
@@ -543,33 +603,4 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function initCampusRipple() {
-  const surface = document.getElementById("campusRipple");
-  if (!surface) return;
-  let lastRipple = 0;
-  const move = (event) => {
-    const rect = surface.getBoundingClientRect();
-    const point = event.touches?.[0] || event;
-    const x = point.clientX - rect.left;
-    const y = point.clientY - rect.top;
-    surface.style.setProperty("--ripple-x", `${x}px`);
-    surface.style.setProperty("--ripple-y", `${y}px`);
-    surface.classList.add("is-active");
-
-    const now = Date.now();
-    if (now - lastRipple < 140) return;
-    lastRipple = now;
-    const ring = document.createElement("span");
-    ring.className = "water-ring";
-    ring.style.left = `${x}px`;
-    ring.style.top = `${y}px`;
-    surface.appendChild(ring);
-    ring.addEventListener("animationend", () => ring.remove(), { once: true });
-  };
-  surface.addEventListener("pointermove", move);
-  surface.addEventListener("touchmove", move, { passive: true });
-  surface.addEventListener("pointerleave", () => surface.classList.remove("is-active"));
-}
-
-initCampusRipple();
 hydrate();
