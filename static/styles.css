@@ -845,6 +845,18 @@ select:focus {
   line-height: 1.55;
 }
 
+.export-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.export-actions button {
+  width: 100%;
+  justify-content: center;
+}
+
 .admin-actions {
   display: grid;
   gap: 16px;
@@ -1181,6 +1193,10 @@ tbody tr:hover {
   }
 
   .admin-guide .guide-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .export-actions {
     grid-template-columns: 1fr;
   }
 

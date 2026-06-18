@@ -247,6 +247,15 @@
           </div>
         </section>
         <section class="work-card admin-secure is-hidden">
+          <h3>Live Data Export for DataGrip</h3>
+          <p class="admin-note">Download the active website database or CSV datasets. Open the SQLite backup in DataGrip to inspect live Render registrations with SQL. Keep downloaded backups private.</p>
+          <div class="export-actions">
+            <button id="downloadUsersCsv" class="ghost-btn" type="button"><span class="material-symbols-outlined">table</span>Users CSV</button>
+            <button id="downloadAcademicCsv" class="ghost-btn" type="button"><span class="material-symbols-outlined">analytics</span>Academic CSV</button>
+            <button id="downloadSqliteBackup" class="primary-btn" type="button"><span class="material-symbols-outlined">database</span>SQLite Backup</button>
+          </div>
+        </section>
+        <section class="work-card admin-secure is-hidden">
           <h3>Admin Manipulations</h3>
           <div class="admin-actions">
             <form id="adminDeleteUserForm">
@@ -425,6 +434,6 @@
     </section>
   </div>
 
-  <script src="/app.js?v=20260618-private-admin-chatbot"></script>
+  <script src="/app.js?v=20260618-live-export"></script>
 </body>
 </html>

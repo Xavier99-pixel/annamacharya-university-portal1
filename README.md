@@ -163,3 +163,32 @@ Use Admin Monitor when:
 - You are viewing the deployed Render website
 - You want users who registered on the live website
 - You want live code/user/record changes without downloading the hosted database
+
+### Seeing Live Render Users In DataGrip
+
+DataGrip can query only the database file or database server you open. It cannot automatically see users who registered on Render while you are connected to your Mac's local `annamacharya_portal.sqlite3` file.
+
+To inspect live Render registrations in DataGrip:
+
+1. Open the deployed admin URL: `https://your-render-url.onrender.com/admin`
+2. Enter your private `ADMIN_KEY`
+3. Click `Load Live Users`
+4. Click `SQLite Backup` in `Live Data Export for DataGrip`
+5. Open the downloaded `annamacharya_live_database.sqlite3` file in DataGrip
+6. Run SQL commands against that downloaded live backup
+
+For quick spreadsheet-style review, use `Users CSV` or `Academic CSV`. For full DBMS inspection with tables, joins, and SQL commands, use `SQLite Backup`. Keep SQLite backups private because they include the full database, including account/security tables.
+
+Example SQL after opening the downloaded backup in DataGrip:
+
+```sql
+SELECT id, role, name, roll_number, faculty_code, phone_number, phone_verified, course, branch, year, semester, created_at
+FROM users
+ORDER BY id DESC;
+```
+
+```sql
+SELECT role, COUNT(*) AS total
+FROM users
+GROUP BY role;
+```

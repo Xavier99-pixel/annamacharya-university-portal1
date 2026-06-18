@@ -25,6 +25,9 @@ const refreshAdminBtn = document.getElementById("refreshAdminBtn");
 const adminDeleteUserForm = document.getElementById("adminDeleteUserForm");
 const adminCodeForm = document.getElementById("adminCodeForm");
 const adminRecordForm = document.getElementById("adminRecordForm");
+const downloadUsersCsv = document.getElementById("downloadUsersCsv");
+const downloadAcademicCsv = document.getElementById("downloadAcademicCsv");
+const downloadSqliteBackup = document.getElementById("downloadSqliteBackup");
 const chatbotToggle = document.getElementById("chatbotToggle");
 const chatbotPanel = document.getElementById("chatbotPanel");
 const chatbotClose = document.getElementById("chatbotClose");
@@ -180,6 +183,9 @@ refreshAdminBtn.addEventListener("click", loadAdminOverview);
 adminDeleteUserForm.addEventListener("submit", handleAdminDeleteUser);
 adminCodeForm.addEventListener("submit", handleAdminCode);
 adminRecordForm.addEventListener("submit", handleAdminRecord);
+downloadUsersCsv.addEventListener("click", () => downloadAdminExport("users.csv"));
+downloadAcademicCsv.addEventListener("click", () => downloadAdminExport("academic.csv"));
+downloadSqliteBackup.addEventListener("click", () => downloadAdminExport("database.sqlite3"));
 chatbotToggle.addEventListener("click", toggleChatbot);
 chatbotClose.addEventListener("click", closeChatbot);
 chatbotForm.addEventListener("submit", handleChatbotSubmit);
@@ -424,6 +430,16 @@ async function handleAdminActionResult(result, form) {
   notify(result.message || "Admin action completed.", "success");
   form.reset();
   await loadAdminOverview();
+}
+
+function downloadAdminExport(filename) {
+  const key = adminKey();
+  if (!key) {
+    notify("Enter admin key before downloading live data.", "error");
+    return;
+  }
+  window.location.href = `/api/admin/export/${filename}?key=${encodeURIComponent(key)}`;
+  notify("Preparing secure download from the live database.", "success");
 }
 
 function adminKey() {
@@ -698,10 +714,10 @@ function answerChatbot(question) {
     return "HOD flow: check Register as HOD, use only the HOD code, create password, then login as HOD using the HOD code. HODs can monitor faculty attendance and student academic records.";
   }
   if (q.includes("admin") || q.includes("monitor") || q.includes("database")) {
-    return "Admin flow: open the hidden creator URL /admin, enter ADMIN_KEY, click Load Live Users, then manage live Render database users, codes, and student records. DataGrip only shows your local Mac SQLite file unless you import hosted data.";
+    return "Admin flow: open the hidden creator URL /admin, enter ADMIN_KEY, click Load Live Users, then manage live Render data. To inspect live users in DataGrip, download the SQLite Backup from admin export and open that file in DataGrip.";
   }
   if (q.includes("datagrip") || q.includes("sqlite")) {
-    return "DataGrip is best for local SQLite management. The deployed Render website uses its own SQLite file, so use Admin Monitor for live website users. Local DataGrip will not automatically show Render registrations.";
+    return "DataGrip reads only the SQLite file you open. For live Render registrations, open /admin, download SQLite Backup, then open the downloaded annamacharya_live_database.sqlite3 file in DataGrip.";
   }
   if (q.includes("architecture") || q.includes("backend") || q.includes("frontend") || q.includes("api")) {
     return "Architecture: HTML/CSS/JavaScript frontend sends JSON with fetch() to Python app.py API routes. Python validates roles, hashes passwords, manages sessions, and reads/writes SQLite tables.";

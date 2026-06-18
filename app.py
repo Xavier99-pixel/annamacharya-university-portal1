@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import base64
+import csv
 import hashlib
 import hmac
+import io
 import json
 import os
 import secrets
 import sqlite3
+import tempfile
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import SimpleCookie
@@ -327,6 +330,15 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 return
             if parsed.path == "/api/admin/overview":
                 self.admin_overview(parsed.query)
+                return
+            if parsed.path == "/api/admin/export/users.csv":
+                self.admin_export_users_csv(parsed.query)
+                return
+            if parsed.path == "/api/admin/export/academic.csv":
+                self.admin_export_academic_csv(parsed.query)
+                return
+            if parsed.path == "/api/admin/export/database.sqlite3":
+                self.admin_export_database(parsed.query)
                 return
             if parsed.path == "/api/students":
                 self.students()
@@ -767,6 +779,76 @@ class PortalHandler(SimpleHTTPRequestHandler):
             }
         )
 
+    def admin_export_users_csv(self, query: str) -> None:
+        verify_admin_query_key(query)
+        with connect_db() as db:
+            rows = db.execute(
+                """
+                SELECT
+                    id, role, name, gender, course, branch, year, semester, roll_number,
+                    faculty_code, hod_code, phone_number, phone_verified, created_at
+                FROM users
+                ORDER BY datetime(created_at) DESC, id DESC
+                """
+            ).fetchall()
+        self.send_csv_download(
+            "annamacharya_live_users.csv",
+            [
+                "id", "role", "name", "gender", "course", "branch", "year", "semester",
+                "roll_number", "faculty_code", "hod_code", "phone_number",
+                "phone_verified", "created_at",
+            ],
+            rows,
+        )
+
+    def admin_export_academic_csv(self, query: str) -> None:
+        verify_admin_query_key(query)
+        with connect_db() as db:
+            rows = db.execute(
+                """
+                SELECT
+                    users.id AS student_id, users.roll_number, users.name, users.course,
+                    users.branch, users.year, users.semester,
+                    COALESCE(academic_records.attendance, 0) AS attendance,
+                    COALESCE(academic_records.internal_marks, 0) AS internal_marks,
+                    COALESCE(academic_records.external_marks, 0) AS external_marks,
+                    COALESCE(academic_records.marks, 0) AS marks,
+                    COALESCE(academic_records.cgpa, 0) AS cgpa,
+                    COALESCE(academic_records.performance, 'Not updated') AS performance,
+                    academic_records.updated_at
+                FROM users
+                LEFT JOIN academic_records ON academic_records.student_id = users.id
+                WHERE users.role = 'student'
+                ORDER BY users.roll_number
+                """
+            ).fetchall()
+        self.send_csv_download(
+            "annamacharya_academic_records.csv",
+            [
+                "student_id", "roll_number", "name", "course", "branch", "year",
+                "semester", "attendance", "internal_marks", "external_marks",
+                "marks", "cgpa", "performance", "updated_at",
+            ],
+            rows,
+        )
+
+    def admin_export_database(self, query: str) -> None:
+        verify_admin_query_key(query)
+        backup_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".sqlite3", delete=False) as tmp:
+                backup_path = Path(tmp.name)
+            with connect_db() as source, sqlite3.connect(backup_path) as backup:
+                source.backup(backup)
+            self.send_file_download(
+                backup_path.read_bytes(),
+                "application/vnd.sqlite3",
+                "annamacharya_live_database.sqlite3",
+            )
+        finally:
+            if backup_path and backup_path.exists():
+                backup_path.unlink()
+
     def admin_action(self) -> None:
         data = self.read_json()
         verify_admin_key(data.get("admin_key"))
@@ -870,6 +952,22 @@ class PortalHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_csv_download(self, filename: str, fieldnames: list[str], rows: list[sqlite3.Row]) -> None:
+        buffer = io.StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row[field] for field in fieldnames})
+        self.send_file_download(buffer.getvalue().encode("utf-8"), "text/csv; charset=utf-8", filename)
+
+    def send_file_download(self, body: bytes, content_type: str, filename: str) -> None:
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
 
 def clean(value) -> str:
     return str(value or "").strip()
@@ -923,6 +1021,12 @@ def verify_admin_key(value) -> None:
     candidate = clean(value)
     if not ADMIN_KEY or not candidate or not hmac.compare_digest(candidate, ADMIN_KEY):
         raise ValueError("Valid admin key is required.")
+
+
+def verify_admin_query_key(query: str) -> None:
+    params = parse_qs(query)
+    key = (params.get("key") or [""])[0]
+    verify_admin_key(key)
 
 
 def parse_positive_int(value, label: str) -> int:
