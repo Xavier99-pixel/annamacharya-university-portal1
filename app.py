@@ -63,6 +63,18 @@ def init_db() -> None:
                 hod_code TEXT,
                 phone_number TEXT,
                 phone_verified INTEGER NOT NULL DEFAULT 0,
+                email TEXT,
+                address TEXT,
+                dob TEXT,
+                blood_group TEXT,
+                guardian_name TEXT,
+                guardian_phone TEXT,
+                admission_date TEXT,
+                status TEXT DEFAULT 'active',
+                designation TEXT,
+                specialization TEXT,
+                qualification TEXT,
+                experience TEXT,
                 profile_photo TEXT,
                 password_salt TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
@@ -125,10 +137,35 @@ def init_db() -> None:
                 expires_at TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS notices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                type TEXT NOT NULL DEFAULT 'info',
+                target_role TEXT DEFAULT 'all',
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
             """
         )
-        ensure_column(db, "users", "phone_number", "TEXT")
-        ensure_column(db, "users", "phone_verified", "INTEGER NOT NULL DEFAULT 0")
+        for column, definition in {
+            "phone_number": "TEXT",
+            "phone_verified": "INTEGER NOT NULL DEFAULT 0",
+            "email": "TEXT",
+            "address": "TEXT",
+            "dob": "TEXT",
+            "blood_group": "TEXT",
+            "guardian_name": "TEXT",
+            "guardian_phone": "TEXT",
+            "admission_date": "TEXT",
+            "status": "TEXT DEFAULT 'active'",
+            "designation": "TEXT",
+            "specialization": "TEXT",
+            "qualification": "TEXT",
+            "experience": "TEXT",
+        }.items():
+            ensure_column(db, "users", column, definition)
         ensure_column(db, "academic_records", "internal_marks", "REAL DEFAULT 0")
         ensure_column(db, "academic_records", "external_marks", "REAL DEFAULT 0")
         for code in DEFAULT_FACULTY_CODES:
@@ -251,6 +288,18 @@ def public_user(row: sqlite3.Row) -> dict:
         "hod_code": row["hod_code"],
         "phone_number": row["phone_number"],
         "phone_verified": bool(row["phone_verified"]),
+        "email": row["email"],
+        "address": row["address"],
+        "dob": row["dob"],
+        "blood_group": row["blood_group"],
+        "guardian_name": row["guardian_name"],
+        "guardian_phone": row["guardian_phone"],
+        "admission_date": row["admission_date"],
+        "status": row["status"] or "active",
+        "designation": row["designation"],
+        "specialization": row["specialization"],
+        "qualification": row["qualification"],
+        "experience": row["experience"],
         "profile_photo": row["profile_photo"],
         "created_at": row["created_at"],
     }
@@ -314,6 +363,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 user = get_session_user(self.headers)
                 self.send_json({"authenticated": bool(user), "user": user})
                 return
+            if parsed.path == "/api/notices":
+                self.notices()
+                return
             if parsed.path == "/api/faculty-codes":
                 with connect_db() as db:
                     rows = db.execute(
@@ -336,6 +388,12 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 return
             if parsed.path == "/api/admin/export/academic.csv":
                 self.admin_export_academic_csv(parsed.query)
+                return
+            if parsed.path == "/api/admin/export/faculty.csv":
+                self.admin_export_faculty_csv(parsed.query)
+                return
+            if parsed.path == "/api/admin/export/notices.csv":
+                self.admin_export_notices_csv(parsed.query)
                 return
             if parsed.path == "/api/admin/export/database.sqlite3":
                 self.admin_export_database(parsed.query)
@@ -411,6 +469,18 @@ class PortalHandler(SimpleHTTPRequestHandler):
         if len(password) < 6:
             raise ValueError("Password must be at least 6 characters.")
 
+        email = clean(data.get("email"))
+        address = clean(data.get("address"))
+        dob = clean(data.get("dob"))
+        blood_group = clean(data.get("blood_group")).upper()
+        guardian_name = clean(data.get("guardian_name"))
+        guardian_phone = clean_phone(data.get("guardian_phone"))
+        designation = clean(data.get("designation"))
+        specialization = clean(data.get("specialization"))
+        qualification = clean(data.get("qualification"))
+        experience = clean(data.get("experience"))
+        status = "active"
+        admission_date = utc_now().date().isoformat()
         course = branch = year = semester = roll_number = faculty_code = hod_code = None
         phone_number = clean_phone(data.get("phone_number"))
         phone_verified = 0
@@ -428,6 +498,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             phone_verified = 1
         else:
             course = clean(data.get("department")) or "Management Staff"
+            phone_number = clean_phone(data.get("phone_number"))
             if role == "hod":
                 hod_code = clean(data.get("hod_code")).upper()
                 if not hod_code:
@@ -453,9 +524,11 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 """
                 INSERT INTO users (
                     role, name, gender, course, branch, year, semester, roll_number, faculty_code,
-                    hod_code, phone_number, phone_verified, profile_photo, password_salt, password_hash, created_at
+                    hod_code, phone_number, phone_verified, email, address, dob, blood_group,
+                    guardian_name, guardian_phone, admission_date, status, designation, specialization,
+                    qualification, experience, profile_photo, password_salt, password_hash, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     role,
@@ -470,6 +543,18 @@ class PortalHandler(SimpleHTTPRequestHandler):
                     hod_code,
                     phone_number,
                     phone_verified,
+                    email,
+                    address,
+                    dob,
+                    blood_group,
+                    guardian_name,
+                    guardian_phone,
+                    admission_date,
+                    status,
+                    designation,
+                    specialization,
+                    qualification,
+                    experience,
                     profile_photo,
                     salt,
                     password_hash,
@@ -594,6 +679,22 @@ class PortalHandler(SimpleHTTPRequestHandler):
             cookie="au_session=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly",
         )
 
+    def notices(self) -> None:
+        user = require_user(self.headers, {"student", "faculty", "hod"})
+        with connect_db() as db:
+            rows = db.execute(
+                """
+                SELECT id, title, message, type, target_role, created_at
+                FROM notices
+                WHERE active = 1
+                  AND (target_role IN ('all', ?) OR target_role IS NULL OR target_role = '')
+                ORDER BY datetime(created_at) DESC, id DESC
+                LIMIT 12
+                """,
+                (user["role"],),
+            ).fetchall()
+        self.send_json({"ok": True, "notices": [dict(row) for row in rows]})
+
     def students(self) -> None:
         user = require_user(self.headers, {"faculty", "hod"})
         with connect_db() as db:
@@ -601,7 +702,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 """
                 SELECT
                     users.id, users.name, users.gender, users.course, users.branch, users.year,
-                    users.semester, users.roll_number, users.profile_photo,
+                    users.semester, users.roll_number, users.profile_photo, users.email,
+                    users.phone_number, users.status, users.admission_date,
                     COALESCE(academic_records.attendance, 0) AS attendance,
                     COALESCE(academic_records.internal_marks, 0) AS internal_marks,
                     COALESCE(academic_records.external_marks, 0) AS external_marks,
@@ -674,6 +776,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 """
                 SELECT
                     users.id, users.name, users.gender, users.course, users.faculty_code,
+                    users.email, users.phone_number, users.designation, users.specialization,
+                    users.qualification, users.experience, users.status,
                     users.profile_photo, users.created_at,
                     COALESCE(faculty_attendance.attendance, 0) AS attendance,
                     COALESCE(faculty_attendance.performance, 'Not updated') AS performance,
@@ -734,16 +838,17 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 """
                 SELECT
                     id, role, name, roll_number, faculty_code, hod_code, phone_number,
-                    phone_verified, course, branch, year, semester, created_at
+                    phone_verified, email, status, course, branch, year, semester, created_at
                 FROM users
                 ORDER BY datetime(created_at) DESC, id DESC
-                LIMIT 50
+                LIMIT 250
                 """
             ).fetchall()
             records = db.execute(
                 """
                 SELECT
-                    users.roll_number, users.name, users.course, users.branch,
+                    users.roll_number, users.name, users.course, users.branch, users.year,
+                    users.semester, users.status,
                     academic_records.attendance, academic_records.internal_marks,
                     academic_records.external_marks, academic_records.marks,
                     academic_records.cgpa, academic_records.performance,
@@ -752,7 +857,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 LEFT JOIN academic_records ON academic_records.student_id = users.id
                 WHERE users.role = 'student'
                 ORDER BY users.roll_number
-                LIMIT 50
+                LIMIT 250
                 """
             ).fetchall()
             codes = db.execute(
@@ -765,18 +870,67 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 ORDER BY code_type, code
                 """
             ).fetchall()
+            metric_row = db.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN role = 'student' AND COALESCE(status, 'active') = 'active' THEN 1 ELSE 0 END) AS active_students,
+                    SUM(CASE WHEN role = 'student' AND phone_verified = 1 THEN 1 ELSE 0 END) AS verified_students,
+                    SUM(CASE WHEN date(created_at) = date('now') THEN 1 ELSE 0 END) AS today_registrations
+                FROM users
+                """
+            ).fetchone()
+            active_faculty_codes = db.execute(
+                "SELECT COUNT(*) AS count FROM faculty_codes WHERE active = 1"
+            ).fetchone()["count"]
+            active_hod_codes = db.execute(
+                "SELECT COUNT(*) AS count FROM hod_codes WHERE active = 1"
+            ).fetchone()["count"]
+            open_notices = db.execute(
+                "SELECT COUNT(*) AS count FROM notices WHERE active = 1"
+            ).fetchone()["count"]
+            course_rows = db.execute(
+                """
+                SELECT COALESCE(course, 'Unassigned') AS course,
+                       COALESCE(branch, 'General') AS branch,
+                       COUNT(*) AS total
+                FROM users
+                WHERE role = 'student'
+                GROUP BY course, branch
+                ORDER BY total DESC, course, branch
+                LIMIT 8
+                """
+            ).fetchall()
+            notices = db.execute(
+                """
+                SELECT id, title, message, type, target_role, active, created_at
+                FROM notices
+                ORDER BY datetime(created_at) DESC, id DESC
+                LIMIT 25
+                """
+            ).fetchall()
         counts = {"student": 0, "faculty": 0, "hod": 0}
         for row in role_rows:
             counts[row["role"]] = row["total"]
+        metrics = dict(metric_row) if metric_row else {}
         self.send_json(
             {
                 "ok": True,
                 "database_path": str(DB_PATH),
                 "counts": counts,
+                "metrics": {
+                    "active_students": metrics.get("active_students") or 0,
+                    "verified_students": metrics.get("verified_students") or 0,
+                    "today_registrations": metrics.get("today_registrations") or 0,
+                    "active_faculty_codes": active_faculty_codes,
+                    "active_hod_codes": active_hod_codes,
+                    "open_notices": open_notices,
+                },
                 "total_users": sum(counts.values()),
                 "recent_users": [dict(row) for row in recent_users],
                 "student_records": [dict(row) for row in records],
                 "codes": [dict(row) for row in codes],
+                "course_distribution": [dict(row) for row in course_rows],
+                "notices": [dict(row) for row in notices],
                 "note": "This shows the database used by the running website instance.",
             }
         )
@@ -788,7 +942,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 """
                 SELECT
                     id, role, name, gender, course, branch, year, semester, roll_number,
-                    faculty_code, hod_code, phone_number, phone_verified, created_at
+                    faculty_code, hod_code, phone_number, phone_verified, email, address,
+                    dob, blood_group, guardian_name, guardian_phone, admission_date, status,
+                    designation, specialization, qualification, experience, created_at
                 FROM users
                 ORDER BY datetime(created_at) DESC, id DESC
                 """
@@ -798,7 +954,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
             [
                 "id", "role", "name", "gender", "course", "branch", "year", "semester",
                 "roll_number", "faculty_code", "hod_code", "phone_number",
-                "phone_verified", "created_at",
+                "phone_verified", "email", "address", "dob", "blood_group", "guardian_name",
+                "guardian_phone", "admission_date", "status", "designation", "specialization",
+                "qualification", "experience", "created_at",
             ],
             rows,
         )
@@ -831,6 +989,52 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 "semester", "attendance", "internal_marks", "external_marks",
                 "marks", "cgpa", "performance", "updated_at",
             ],
+            rows,
+        )
+
+    def admin_export_faculty_csv(self, query: str) -> None:
+        verify_admin_query_key(query)
+        with connect_db() as db:
+            rows = db.execute(
+                """
+                SELECT
+                    users.id, users.role, users.name, users.gender, users.course AS department,
+                    users.faculty_code, users.hod_code, users.phone_number, users.email,
+                    users.designation, users.specialization, users.qualification,
+                    users.experience, users.status,
+                    COALESCE(faculty_attendance.attendance, 0) AS attendance,
+                    COALESCE(faculty_attendance.performance, 'Not updated') AS performance,
+                    faculty_attendance.updated_at,
+                    users.created_at
+                FROM users
+                LEFT JOIN faculty_attendance ON faculty_attendance.faculty_id = users.id
+                WHERE users.role IN ('faculty', 'hod')
+                ORDER BY users.role, users.course, users.name
+                """
+            ).fetchall()
+        self.send_csv_download(
+            "annamacharya_faculty_report.csv",
+            [
+                "id", "role", "name", "gender", "department", "faculty_code", "hod_code",
+                "phone_number", "email", "designation", "specialization", "qualification",
+                "experience", "status", "attendance", "performance", "updated_at", "created_at",
+            ],
+            rows,
+        )
+
+    def admin_export_notices_csv(self, query: str) -> None:
+        verify_admin_query_key(query)
+        with connect_db() as db:
+            rows = db.execute(
+                """
+                SELECT id, title, message, type, target_role, active, created_at
+                FROM notices
+                ORDER BY datetime(created_at) DESC, id DESC
+                """
+            ).fetchall()
+        self.send_csv_download(
+            "annamacharya_notices_report.csv",
+            ["id", "title", "message", "type", "target_role", "active", "created_at"],
             rows,
         )
 
@@ -931,6 +1135,37 @@ class PortalHandler(SimpleHTTPRequestHandler):
                         raise ValueError("Code not found.")
                     message = f"{code_type.title()} code deactivated: {code}."
             self.send_json({"ok": True, "message": message})
+            return
+
+        if action == "create_notice":
+            title = clean(data.get("title"))
+            message = clean(data.get("message"))
+            notice_type = clean(data.get("type")).lower() or "info"
+            target_role = clean(data.get("target_role")).lower() or "all"
+            if not title or not message:
+                raise ValueError("Notice title and message are required.")
+            if notice_type not in {"info", "warning", "urgent", "event"}:
+                raise ValueError("Choose a valid notice type.")
+            if target_role not in {"all", "student", "faculty", "hod"}:
+                raise ValueError("Choose a valid notice target.")
+            with connect_db() as db:
+                db.execute(
+                    """
+                    INSERT INTO notices (title, message, type, target_role, active, created_at)
+                    VALUES (?, ?, ?, ?, 1, ?)
+                    """,
+                    (title, message, notice_type, target_role, utc_now().isoformat()),
+                )
+            self.send_json({"ok": True, "message": "Notice published successfully."})
+            return
+
+        if action == "deactivate_notice":
+            notice_id = parse_positive_int(data.get("notice_id"), "Notice ID")
+            with connect_db() as db:
+                cursor = db.execute("UPDATE notices SET active = 0 WHERE id = ?", (notice_id,))
+            if not cursor.rowcount:
+                raise ValueError("Notice not found.")
+            self.send_json({"ok": True, "message": f"Notice ID {notice_id} deactivated."})
             return
 
         if action == "update_student_record":

@@ -111,6 +111,12 @@
             <label>Semester<select name="semester" required><option value="">Select semester</option><option>Semester 1</option><option>Semester 2</option><option>Semester 3</option><option>Semester 4</option><option>Semester 5</option><option>Semester 6</option><option>Semester 7</option><option>Semester 8</option></select></label>
             <label>Roll Number<input name="roll_number" required placeholder="Example: AU23A0123"></label>
             <label>Phone Number<input id="studentPhone" name="phone_number" required inputmode="numeric" maxlength="10" placeholder="10 digit mobile number"></label>
+            <label>Email<input name="email" type="email" placeholder="student@annamacharya.edu.in"></label>
+            <label>Date of Birth<input name="dob" type="date"></label>
+            <label>Blood Group<input name="blood_group" placeholder="Example: O+"></label>
+            <label>Guardian Name<input name="guardian_name" placeholder="Parent or guardian name"></label>
+            <label>Guardian Phone<input name="guardian_phone" inputmode="numeric" maxlength="10" placeholder="10 digit guardian mobile"></label>
+            <label class="full-field">Address<textarea name="address" rows="3" placeholder="Permanent address"></textarea></label>
             <div class="otp-panel">
               <button id="sendOtpBtn" class="ghost-btn" type="button"><span class="material-symbols-outlined">sms</span>Send OTP</button>
               <label>OTP<input id="studentOtp" name="otp_code" inputmode="numeric" maxlength="6" placeholder="Enter 6 digit OTP"></label>
@@ -152,6 +158,12 @@
             <label>Full Name<input name="name" required placeholder="Enter full name"></label>
             <label>Gender<select name="gender" required><option value="">Select</option><option>Female</option><option>Male</option><option>Other</option></select></label>
             <label>Department<input name="department" required placeholder="Example: CSE Department"></label>
+            <label>Email<input name="email" type="email" placeholder="faculty@annamacharya.edu.in"></label>
+            <label>Phone Number<input name="phone_number" inputmode="numeric" maxlength="10" placeholder="10 digit mobile number"></label>
+            <label>Designation<input name="designation" placeholder="Professor, Assistant Professor"></label>
+            <label>Specialization<input name="specialization" placeholder="AI, VLSI, Finance, Education"></label>
+            <label>Qualification<input name="qualification" placeholder="M.Tech, Ph.D, MBA"></label>
+            <label>Experience<input name="experience" placeholder="Example: 8 years"></label>
             <label id="facultyCodeField">Faculty Code<input name="faculty_code" required placeholder="Example: AU-FAC-2026"></label>
             <label class="check-row"><input id="isHod" name="is_hod" type="checkbox"><span>Register as HOD (Head of Department)</span></label>
             <label id="hodCodeField" class="is-hidden">HOD Code<input name="hod_code" placeholder="Example: AU-HOD-CSE-2026"></label>
@@ -208,6 +220,11 @@
             </div>
           </section>
         </div>
+        <section class="work-card admin-secure is-hidden">
+          <h3>Operational Intelligence</h3>
+          <div id="adminMetrics" class="stat-grid intelligence-grid"></div>
+          <div id="adminDistribution" class="distribution-list"></div>
+        </section>
         <section class="work-card admin-guide">
           <h3>Creator Access Guide</h3>
           <div class="guide-grid">
@@ -221,9 +238,23 @@
             <h3>Recent Registered Users</h3>
             <button id="refreshAdminBtn" class="ghost-btn" type="button"><span class="material-symbols-outlined">refresh</span>Refresh</button>
           </div>
+          <div class="admin-filters">
+            <input id="adminUserSearch" placeholder="Search name, roll no, code, phone">
+            <select id="adminRoleFilter">
+              <option value="all">All roles</option>
+              <option value="student">Students</option>
+              <option value="faculty">Faculty</option>
+              <option value="hod">HODs</option>
+            </select>
+            <select id="adminStatusFilter">
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="verified">Phone verified</option>
+            </select>
+          </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Role</th><th>Name</th><th>Login ID</th><th>Phone</th><th>Course/Dept</th><th>Registered</th></tr></thead>
+              <thead><tr><th>ID</th><th>Role</th><th>Name</th><th>Login ID</th><th>Phone</th><th>Email</th><th>Course/Dept</th><th>Status</th><th>Registered</th></tr></thead>
               <tbody id="adminUsersTable"></tbody>
             </table>
           </div>
@@ -252,6 +283,8 @@
           <div class="export-actions">
             <button id="downloadUsersCsv" class="ghost-btn" type="button"><span class="material-symbols-outlined">table</span>Users CSV</button>
             <button id="downloadAcademicCsv" class="ghost-btn" type="button"><span class="material-symbols-outlined">analytics</span>Academic CSV</button>
+            <button id="downloadFacultyCsv" class="ghost-btn" type="button"><span class="material-symbols-outlined">groups</span>Faculty CSV</button>
+            <button id="downloadNoticesCsv" class="ghost-btn" type="button"><span class="material-symbols-outlined">campaign</span>Notices CSV</button>
             <button id="downloadSqliteBackup" class="primary-btn" type="button"><span class="material-symbols-outlined">database</span>SQLite Backup</button>
           </div>
           <form id="restoreDatabaseForm" class="restore-form">
@@ -259,6 +292,34 @@
             <button class="ghost-btn" type="submit"><span class="material-symbols-outlined">upload_file</span>Restore Live Database</button>
           </form>
           <p class="admin-note">Use restore only after a free Render redeploy resets the database. It replaces the current live database with your selected backup.</p>
+        </section>
+        <section class="work-card admin-secure is-hidden">
+          <div class="table-head">
+            <h3>Role Targeted Notices</h3>
+          </div>
+          <div class="admin-actions notice-actions">
+            <form id="adminNoticeForm">
+              <h4>Publish Notice</h4>
+              <div class="grid two">
+                <label>Title<input name="title" required placeholder="Example: Mid semester update"></label>
+                <label>Type<select name="type" required><option value="info">Info</option><option value="warning">Warning</option><option value="urgent">Urgent</option><option value="event">Event</option></select></label>
+                <label>Target<select name="target_role" required><option value="all">Everyone</option><option value="student">Students</option><option value="faculty">Faculty</option><option value="hod">HODs</option></select></label>
+                <label class="full-field">Message<textarea name="message" rows="3" required placeholder="Notice body"></textarea></label>
+              </div>
+              <button class="ghost-btn" type="submit"><span class="material-symbols-outlined">campaign</span>Publish Notice</button>
+            </form>
+            <form id="adminDeactivateNoticeForm">
+              <h4>Deactivate Notice</h4>
+              <label>Notice ID<input name="notice_id" required type="number" min="1" placeholder="Example: 3"></label>
+              <button class="ghost-btn" type="submit"><span class="material-symbols-outlined">visibility_off</span>Deactivate</button>
+            </form>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Type</th><th>Target</th><th>Title</th><th>Status</th><th>Created</th></tr></thead>
+              <tbody id="adminNoticesTable"></tbody>
+            </table>
+          </div>
         </section>
         <section class="work-card admin-secure is-hidden">
           <h3>Admin Manipulations</h3>
@@ -323,6 +384,11 @@
             <h3>Permissions</h3>
             <p>Students can view only their own profile and academic record. Faculty and HOD workspaces are blocked for student accounts.</p>
           </article>
+          <article>
+            <span class="material-symbols-outlined">campaign</span>
+            <h3>Notices</h3>
+            <div id="studentNotices" class="notice-list"></div>
+          </article>
         </div>
         <button id="logoutBtn" class="ghost-btn">
           <span class="material-symbols-outlined">logout</span>
@@ -365,6 +431,10 @@
             </div>
           </section>
         </div>
+        <section class="work-card">
+          <h3>Faculty Notices</h3>
+          <div id="facultyNotices" class="notice-list"></div>
+        </section>
       </section>
 
       <section id="hod-dashboard" class="view dashboard workspace is-hidden">
@@ -406,6 +476,10 @@
             </table>
           </div>
         </section>
+        <section class="work-card">
+          <h3>HOD Notices</h3>
+          <div id="hodNotices" class="notice-list"></div>
+        </section>
       </section>
     </main>
   </div>
@@ -424,13 +498,13 @@
         <button id="chatbotClose" type="button" aria-label="Close chatbot"><span class="material-symbols-outlined">close</span></button>
       </header>
       <div id="chatbotMessages" class="chatbot-messages">
-        <div class="bot-message">Hi, I am AITS CHATBOT. Ask me about student registration, faculty login, HOD access, admin database, OTP, deployment, or this project's architecture.</div>
+        <div class="bot-message">Hi, I am AITS CHATBOT. Ask me about registration, notices, reports, DataGrip backup/restore, admin filters, dashboards, OTP, or this project's architecture.</div>
       </div>
       <div class="chatbot-chips">
         <button type="button" data-chat-prompt="How do students register?">Student help</button>
         <button type="button" data-chat-prompt="How does faculty update marks?">Faculty help</button>
         <button type="button" data-chat-prompt="How do I use the admin panel?">Admin help</button>
-        <button type="button" data-chat-prompt="Explain the project architecture">Architecture</button>
+        <button type="button" data-chat-prompt="How do notices and reports work?">Reports</button>
       </div>
       <form id="chatbotForm">
         <input id="chatbotInput" autocomplete="off" placeholder="Ask AITS CHATBOT">
@@ -439,6 +513,6 @@
     </section>
   </div>
 
-  <script src="/app.js?v=20260618-live-export-restore"></script>
+  <script src="/app.js?v=20260618-high-end-package"></script>
 </body>
 </html>

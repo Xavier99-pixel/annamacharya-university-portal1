@@ -164,6 +164,18 @@ Use Admin Monitor when:
 - You want users who registered on the live website
 - You want live code/user/record changes without downloading the hosted database
 
+### High-End Review Features
+
+The portal includes a hidden creator/admin console with operational intelligence inspired by full college management systems:
+
+- Role counts plus active students, phone-verified students, today's registrations, active faculty/HOD codes, and open notices
+- Search and filter for live users by name, roll number, code, phone, role, and status
+- Role-targeted notices for everyone, students, faculty, or HODs
+- CSV reports for users, academic records, faculty/HOD records, and notices
+- Rich profile fields for student guardian/contact details and faculty qualification/specialization details
+- SQLite backup and restore for free Render deployments
+- AITS CHATBOT guidance for registration, admin operations, reports, notices, DataGrip, backup/restore, and architecture
+
 ### Seeing Live Render Users In DataGrip
 
 DataGrip can query only the database file or database server you open. It cannot automatically see users who registered on Render while you are connected to your Mac's local `annamacharya_portal.sqlite3` file.

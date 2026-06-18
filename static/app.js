@@ -6,6 +6,8 @@ const state = {
   user: null,
   students: [],
   faculty: [],
+  notices: [],
+  adminData: null,
   otpVerifiedPhone: "",
   adminUnlocked: false,
 };
@@ -25,8 +27,15 @@ const refreshAdminBtn = document.getElementById("refreshAdminBtn");
 const adminDeleteUserForm = document.getElementById("adminDeleteUserForm");
 const adminCodeForm = document.getElementById("adminCodeForm");
 const adminRecordForm = document.getElementById("adminRecordForm");
+const adminNoticeForm = document.getElementById("adminNoticeForm");
+const adminDeactivateNoticeForm = document.getElementById("adminDeactivateNoticeForm");
+const adminUserSearch = document.getElementById("adminUserSearch");
+const adminRoleFilter = document.getElementById("adminRoleFilter");
+const adminStatusFilter = document.getElementById("adminStatusFilter");
 const downloadUsersCsv = document.getElementById("downloadUsersCsv");
 const downloadAcademicCsv = document.getElementById("downloadAcademicCsv");
+const downloadFacultyCsv = document.getElementById("downloadFacultyCsv");
+const downloadNoticesCsv = document.getElementById("downloadNoticesCsv");
 const downloadSqliteBackup = document.getElementById("downloadSqliteBackup");
 const restoreDatabaseForm = document.getElementById("restoreDatabaseForm");
 const restoreDatabaseFile = document.getElementById("restoreDatabaseFile");
@@ -107,6 +116,12 @@ document.getElementById("studentForm").addEventListener("submit", async (event) 
     semester: data.semester,
     roll_number: data.roll_number,
     phone_number: phone,
+    email: data.email,
+    dob: data.dob,
+    blood_group: data.blood_group,
+    guardian_name: data.guardian_name,
+    guardian_phone: data.guardian_phone,
+    address: data.address,
     password: data.password,
     profile_photo: state.photos.student,
   });
@@ -127,6 +142,12 @@ document.getElementById("staffForm").addEventListener("submit", async (event) =>
     name: data.name,
     gender: data.gender,
     department: data.department,
+    email: data.email,
+    phone_number: data.phone_number,
+    designation: data.designation,
+    specialization: data.specialization,
+    qualification: data.qualification,
+    experience: data.experience,
     faculty_code: data.is_hod === "on" ? "" : data.faculty_code,
     hod_code: data.hod_code,
     password: data.password,
@@ -185,8 +206,15 @@ refreshAdminBtn.addEventListener("click", loadAdminOverview);
 adminDeleteUserForm.addEventListener("submit", handleAdminDeleteUser);
 adminCodeForm.addEventListener("submit", handleAdminCode);
 adminRecordForm.addEventListener("submit", handleAdminRecord);
+adminNoticeForm.addEventListener("submit", handleAdminNotice);
+adminDeactivateNoticeForm.addEventListener("submit", handleAdminDeactivateNotice);
+adminUserSearch.addEventListener("input", renderAdminUsersTable);
+adminRoleFilter.addEventListener("change", renderAdminUsersTable);
+adminStatusFilter.addEventListener("change", renderAdminUsersTable);
 downloadUsersCsv.addEventListener("click", () => downloadAdminExport("users.csv"));
 downloadAcademicCsv.addEventListener("click", () => downloadAdminExport("academic.csv"));
+downloadFacultyCsv.addEventListener("click", () => downloadAdminExport("faculty.csv"));
+downloadNoticesCsv.addEventListener("click", () => downloadAdminExport("notices.csv"));
 downloadSqliteBackup.addEventListener("click", () => downloadAdminExport("database.sqlite3"));
 restoreDatabaseForm.addEventListener("submit", handleRestoreDatabase);
 chatbotToggle.addEventListener("click", toggleChatbot);
@@ -293,19 +321,19 @@ function syncHodRegistrationFields() {
 
 async function renderWorkspace(user) {
   if (user.role === "student") {
-    await renderStudentDashboard(user);
+    await Promise.all([renderStudentDashboard(user), loadNotices()]);
     showView("student-dashboard");
     return;
   }
   if (user.role === "faculty") {
     renderStaffHeading(user);
-    await loadStudents();
+    await Promise.all([loadStudents(), loadNotices()]);
     showView("faculty-dashboard");
     return;
   }
   if (user.role === "hod") {
     renderStaffHeading(user);
-    await Promise.all([loadStudents(), loadFaculty()]);
+    await Promise.all([loadStudents(), loadFaculty(), loadNotices()]);
     showView("hod-dashboard");
   }
 }
@@ -328,6 +356,7 @@ async function loadAdminOverview() {
 
 function renderAdminOverview(result) {
   setAdminUnlocked(true);
+  state.adminData = result;
   const counts = result.counts || {};
   document.getElementById("adminDbPath").textContent = `Active database: ${result.database_path}`;
   document.getElementById("adminCounts").innerHTML = [
@@ -337,27 +366,14 @@ function renderAdminOverview(result) {
     ["Total", result.total_users || 0],
   ].map(([label, value]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("");
 
-  document.getElementById("adminUsersTable").innerHTML = (result.recent_users || []).map((user) => {
-    const loginId = user.roll_number || user.faculty_code || user.hod_code || "";
-    const course = [user.course, user.branch, user.year, user.semester].filter(Boolean).join(" · ");
-    return `
-      <tr>
-        <td>${escapeHtml(user.id)}</td>
-        <td>${escapeHtml(roleLabel(user.role))}</td>
-        <td>${escapeHtml(user.name)}</td>
-        <td>${escapeHtml(loginId)}</td>
-        <td>${escapeHtml(user.phone_number || "-")}${user.phone_verified ? " · verified" : ""}</td>
-        <td>${escapeHtml(course || "-")}</td>
-        <td>${escapeHtml(formatDate(user.created_at))}</td>
-      </tr>
-    `;
-  }).join("") || emptyRow(7, "No users found in this running database.");
+  renderAdminMetrics(result);
+  renderAdminUsersTable();
 
   document.getElementById("adminRecordsTable").innerHTML = (result.student_records || []).map((record) => `
     <tr>
       <td>${escapeHtml(record.roll_number)}</td>
       <td>${escapeHtml(record.name)}</td>
-      <td>${escapeHtml([record.course, record.branch].filter(Boolean).join(" · "))}</td>
+      <td>${escapeHtml([record.course, record.branch, record.year, record.semester].filter(Boolean).join(" · "))}</td>
       <td>${escapeHtml(record.attendance || 0)}%</td>
       <td>${escapeHtml(record.internal_marks || 0)}</td>
       <td>${escapeHtml(record.external_marks || 0)}</td>
@@ -376,6 +392,72 @@ function renderAdminOverview(result) {
       <td>${escapeHtml(formatDate(code.created_at))}</td>
     </tr>
   `).join("") || emptyRow(5, "No faculty or HOD codes found.");
+
+  renderAdminNotices(result.notices || []);
+}
+
+function renderAdminMetrics(result) {
+  const metrics = result.metrics || {};
+  document.getElementById("adminMetrics").innerHTML = [
+    ["Active Students", metrics.active_students || 0],
+    ["Phone Verified", metrics.verified_students || 0],
+    ["Joined Today", metrics.today_registrations || 0],
+    ["Faculty Codes", metrics.active_faculty_codes || 0],
+    ["HOD Codes", metrics.active_hod_codes || 0],
+    ["Open Notices", metrics.open_notices || 0],
+  ].map(([label, value]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join("");
+
+  document.getElementById("adminDistribution").innerHTML = (result.course_distribution || []).map((item) => `
+    <div>
+      <span>${escapeHtml([item.course, item.branch].filter(Boolean).join(" · "))}</span>
+      <strong>${escapeHtml(item.total)}</strong>
+    </div>
+  `).join("") || "<p class=\"admin-note\">No course distribution data yet.</p>";
+}
+
+function renderAdminUsersTable() {
+  const result = state.adminData || {};
+  const query = adminUserSearch.value.trim().toLowerCase();
+  const role = adminRoleFilter.value;
+  const status = adminStatusFilter.value;
+  const users = (result.recent_users || []).filter((user) => {
+    const matchesRole = role === "all" || user.role === role;
+    const matchesStatus = status === "all"
+      || (status === "active" && (user.status || "active") === "active")
+      || (status === "verified" && user.phone_verified);
+    const haystack = searchable(user);
+    return matchesRole && matchesStatus && (!query || haystack.includes(query));
+  });
+  document.getElementById("adminUsersTable").innerHTML = users.map((user) => {
+    const loginId = user.roll_number || user.faculty_code || user.hod_code || "";
+    const course = [user.course, user.branch, user.year, user.semester].filter(Boolean).join(" · ");
+    return `
+      <tr>
+        <td>${escapeHtml(user.id)}</td>
+        <td>${escapeHtml(roleLabel(user.role))}</td>
+        <td>${escapeHtml(user.name)}</td>
+        <td>${escapeHtml(loginId)}</td>
+        <td>${escapeHtml(user.phone_number || "-")}${user.phone_verified ? " · verified" : ""}</td>
+        <td>${escapeHtml(user.email || "-")}</td>
+        <td>${escapeHtml(course || "-")}</td>
+        <td><span class="status-pill active">${escapeHtml(user.status || "active")}</span></td>
+        <td>${escapeHtml(formatDate(user.created_at))}</td>
+      </tr>
+    `;
+  }).join("") || emptyRow(9, "No users match the current filters.");
+}
+
+function renderAdminNotices(notices) {
+  document.getElementById("adminNoticesTable").innerHTML = notices.map((notice) => `
+    <tr>
+      <td>${escapeHtml(notice.id)}</td>
+      <td><span class="notice-badge ${escapeHtml(notice.type)}">${escapeHtml(notice.type)}</span></td>
+      <td>${escapeHtml(notice.target_role || "all")}</td>
+      <td>${escapeHtml(notice.title)}</td>
+      <td><span class="${notice.active ? "status-pill active" : "status-pill inactive"}">${notice.active ? "Active" : "Inactive"}</span></td>
+      <td>${escapeHtml(formatDate(notice.created_at))}</td>
+    </tr>
+  `).join("") || emptyRow(6, "No notices published yet.");
 }
 
 function setAdminUnlocked(unlocked) {
@@ -421,6 +503,31 @@ async function handleAdminRecord(event) {
     external_marks: data.external_marks,
     cgpa: data.cgpa,
     performance: data.performance,
+  });
+  await handleAdminActionResult(result, event.currentTarget);
+}
+
+async function handleAdminNotice(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const result = await postJson("/api/admin/action", {
+    admin_key: adminKey(),
+    action: "create_notice",
+    title: data.title,
+    message: data.message,
+    type: data.type,
+    target_role: data.target_role,
+  });
+  await handleAdminActionResult(result, event.currentTarget);
+}
+
+async function handleAdminDeactivateNotice(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const result = await postJson("/api/admin/action", {
+    admin_key: adminKey(),
+    action: "deactivate_notice",
+    notice_id: data.notice_id,
   });
   await handleAdminActionResult(result, event.currentTarget);
 }
@@ -527,6 +634,33 @@ async function loadFaculty() {
   renderFacultyTable();
 }
 
+async function loadNotices() {
+  const response = await fetch("/api/notices");
+  const result = await response.json();
+  if (!result.ok) {
+    state.notices = [];
+    return;
+  }
+  state.notices = result.notices || [];
+  renderRoleNotices();
+}
+
+function renderRoleNotices() {
+  const html = state.notices.map((notice) => `
+    <article class="notice-item ${escapeHtml(notice.type)}">
+      <div>
+        <strong>${escapeHtml(notice.title)}</strong>
+        <span>${escapeHtml(formatDate(notice.created_at))} · ${escapeHtml(notice.type)}</span>
+      </div>
+      <p>${escapeHtml(notice.message)}</p>
+    </article>
+  `).join("") || "<p class=\"admin-note\">No active notices for your role.</p>";
+  ["studentNotices", "facultyNotices", "hodNotices"].forEach((id) => {
+    const node = document.getElementById(id);
+    if (node) node.innerHTML = html;
+  });
+}
+
 function renderStudentsTable() {
   const query = document.getElementById("studentSearch")?.value?.toLowerCase() || "";
   const students = state.students.filter((student) => searchable(student).includes(query));
@@ -596,7 +730,32 @@ function renderSavedDetails(user) {
   ];
 
   if (user.role === "student") {
-    rows.splice(4, 0, ["Branch", user.branch], ["Year", user.year], ["Semester", user.semester], ["Phone", user.phone_number]);
+    rows.splice(
+      4,
+      0,
+      ["Branch", user.branch],
+      ["Year", user.year],
+      ["Semester", user.semester],
+      ["Phone", user.phone_number],
+      ["Email", user.email],
+      ["DOB", user.dob],
+      ["Blood Group", user.blood_group],
+      ["Guardian", user.guardian_name],
+      ["Guardian Phone", user.guardian_phone],
+      ["Status", user.status]
+    );
+  } else {
+    rows.splice(
+      4,
+      0,
+      ["Email", user.email],
+      ["Phone", user.phone_number],
+      ["Designation", user.designation],
+      ["Specialization", user.specialization],
+      ["Qualification", user.qualification],
+      ["Experience", user.experience],
+      ["Status", user.status]
+    );
   }
 
   rows.push(["Registered", formatDate(user.created_at)]);
@@ -738,7 +897,7 @@ function appendChatMessage(message, className) {
 function answerChatbot(question) {
   const q = question.toLowerCase();
   if (q.includes("student") || q.includes("register") || q.includes("roll")) {
-    return "Student flow: click Student Registration, enter profile/photo/course/branch/year/semester/roll number, verify phone OTP, create password, then login with roll number and password.";
+    return "Student flow: click Student Registration, add profile/photo/course/branch/year/semester/roll number plus optional email, DOB, blood group and guardian details, verify phone OTP, create password, then login with roll number.";
   }
   if (q.includes("faculty") || q.includes("marks") || q.includes("attendance")) {
     return "Faculty flow: register with a university faculty code, login as Faculty with that code, then use the Faculty Workspace to update student attendance, internal marks, external marks, CGPA and performance by roll number.";
@@ -747,10 +906,19 @@ function answerChatbot(question) {
     return "HOD flow: check Register as HOD, use only the HOD code, create password, then login as HOD using the HOD code. HODs can monitor faculty attendance and student academic records.";
   }
   if (q.includes("admin") || q.includes("monitor") || q.includes("database")) {
-    return "Admin flow: open the hidden creator URL /admin, enter ADMIN_KEY, click Load Live Users, then manage live Render data. To inspect live users in DataGrip, download the SQLite Backup from admin export and open that file in DataGrip.";
+    return "Admin flow: open /admin, enter ADMIN_KEY, load live users, filter users by role/status/search, publish notices, manage codes, update records, export CSV reports, and download/restore SQLite backups.";
   }
   if (q.includes("datagrip") || q.includes("sqlite")) {
     return "DataGrip reads only the SQLite file you open. For live Render registrations, open /admin, download SQLite Backup, then open it in DataGrip. To put data back after redeploy, upload the same backup with Restore Live Database.";
+  }
+  if (q.includes("notice") || q.includes("notification") || q.includes("announcement")) {
+    return "Notice module: admin opens /admin, publishes a notice with type info/warning/urgent/event and target all/student/faculty/HOD. Each logged-in role sees only relevant notices in its dashboard.";
+  }
+  if (q.includes("report") || q.includes("csv") || q.includes("export")) {
+    return "Reports: admin can export Users CSV, Academic CSV, Faculty CSV, Notices CSV, or full SQLite Backup. CSV is for review sheets; SQLite backup is for DataGrip and restore.";
+  }
+  if (q.includes("profile") || q.includes("guardian") || q.includes("blood")) {
+    return "Profiles now store richer details: student email, DOB, blood group, guardian contact, address and status; faculty profiles include designation, specialization, qualification and experience.";
   }
   if (q.includes("architecture") || q.includes("backend") || q.includes("frontend") || q.includes("api")) {
     return "Architecture: HTML/CSS/JavaScript frontend sends JSON with fetch() to Python app.py API routes. Python validates roles, hashes passwords, manages sessions, and reads/writes SQLite tables.";
@@ -764,7 +932,7 @@ function answerChatbot(question) {
   if (q.includes("security") || q.includes("password") || q.includes("jwt")) {
     return "Security: this portal uses PBKDF2-HMAC password hashing and HttpOnly session cookies. It does not use JWT currently. Admin actions require ADMIN_KEY.";
   }
-  return "I can help with student registration, faculty login, HOD login, Admin Monitor, DataGrip vs live database, OTP, deployment, and the portal architecture. Try asking: How do I use admin panel?";
+  return "I can help with student registration, faculty/HOD login, notices, reports, admin filters, DataGrip backup/restore, OTP, deployment, richer profiles, and the portal architecture. Try asking: How do reports work?";
 }
 
 hydrate();
