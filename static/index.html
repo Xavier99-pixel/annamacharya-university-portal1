@@ -40,7 +40,6 @@
       <nav>
         <button data-view="roles">Roles</button>
         <button data-view="login">Login</button>
-        <button data-view="admin-monitor">Admin Monitor</button>
       </nav>
     </header>
 
@@ -187,19 +186,19 @@
       <section id="admin-monitor" class="view dashboard workspace is-hidden">
         <div class="workspace-header">
           <div>
-            <p class="eyebrow">Creator Workspace</p>
-            <h2>Live Database Monitor</h2>
-            <p>View users from the same SQLite database used by the running website. Local DataGrip shows only your Mac database; this panel shows the deployed website database when opened on Render.</p>
+            <p class="eyebrow">Private Creator Workspace</p>
+            <h2>Secure Admin Console</h2>
+            <p>This console is hidden from the public navigation. Open it directly with the private admin URL and unlock it with your admin key to manage the active website database.</p>
           </div>
         </div>
         <div class="admin-grid">
           <form id="adminKeyForm" class="portal-form work-card">
-            <h3>Open Monitor</h3>
-            <label>Admin Key<input id="adminKey" name="admin_key" required type="password" placeholder="Demo: AU-ADMIN-2026"></label>
+            <h3>Unlock Console</h3>
+            <label>Admin Key<input id="adminKey" name="admin_key" required type="password" placeholder="Enter private admin key"></label>
             <button class="primary-btn" type="submit"><span class="material-symbols-outlined">database</span>Load Live Users</button>
             <p id="adminDbPath" class="admin-note">Enter the admin key to inspect the active database.</p>
           </form>
-          <section class="work-card admin-stats">
+          <section class="work-card admin-stats admin-secure is-hidden">
             <h3>User Counts</h3>
             <div id="adminCounts" class="stat-grid">
               <div><strong>0</strong><span>Students</span></div>
@@ -209,7 +208,15 @@
             </div>
           </section>
         </div>
-        <section class="work-card">
+        <section class="work-card admin-guide">
+          <h3>Creator Access Guide</h3>
+          <div class="guide-grid">
+            <div><strong>Private URL</strong><span>Open `/admin` on your deployed website. Normal users only see Roles and Login.</span></div>
+            <div><strong>Admin Key</strong><span>Set `ADMIN_KEY` in Render for a private key. Never show this key inside the website UI.</span></div>
+            <div><strong>Live Database</strong><span>Use this panel for Render users. DataGrip only manages your local Mac SQLite file unless you download/import data.</span></div>
+          </div>
+        </section>
+        <section class="work-card admin-secure is-hidden">
           <div class="table-head">
             <h3>Recent Registered Users</h3>
             <button id="refreshAdminBtn" class="ghost-btn" type="button"><span class="material-symbols-outlined">refresh</span>Refresh</button>
@@ -221,7 +228,7 @@
             </table>
           </div>
         </section>
-        <section class="work-card">
+        <section class="work-card admin-secure is-hidden">
           <h3>Student Academic Snapshot</h3>
           <div class="table-wrap">
             <table>
@@ -230,7 +237,16 @@
             </table>
           </div>
         </section>
-        <section class="work-card">
+        <section class="work-card admin-secure is-hidden">
+          <h3>Faculty/HOD Code Registry</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Type</th><th>Code</th><th>Label</th><th>Status</th><th>Created</th></tr></thead>
+              <tbody id="adminCodesTable"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="work-card admin-secure is-hidden">
           <h3>Admin Manipulations</h3>
           <div class="admin-actions">
             <form id="adminDeleteUserForm">
@@ -380,6 +396,35 @@
     </main>
   </div>
 
-  <script src="/app.js?v=20260618-admin-actions"></script>
+  <div id="aitsChatbot" class="chatbot">
+    <button id="chatbotToggle" class="chatbot-toggle" type="button" aria-expanded="false">
+      <span class="material-symbols-outlined">smart_toy</span>
+      <span>AITS CHATBOT</span>
+    </button>
+    <section id="chatbotPanel" class="chatbot-panel is-hidden" aria-label="AITS Chatbot">
+      <header>
+        <div>
+          <strong>AITS CHATBOT</strong>
+          <span>Portal guidance assistant</span>
+        </div>
+        <button id="chatbotClose" type="button" aria-label="Close chatbot"><span class="material-symbols-outlined">close</span></button>
+      </header>
+      <div id="chatbotMessages" class="chatbot-messages">
+        <div class="bot-message">Hi, I am AITS CHATBOT. Ask me about student registration, faculty login, HOD access, admin database, OTP, deployment, or this project's architecture.</div>
+      </div>
+      <div class="chatbot-chips">
+        <button type="button" data-chat-prompt="How do students register?">Student help</button>
+        <button type="button" data-chat-prompt="How does faculty update marks?">Faculty help</button>
+        <button type="button" data-chat-prompt="How do I use the admin panel?">Admin help</button>
+        <button type="button" data-chat-prompt="Explain the project architecture">Architecture</button>
+      </div>
+      <form id="chatbotForm">
+        <input id="chatbotInput" autocomplete="off" placeholder="Ask AITS CHATBOT">
+        <button type="submit" aria-label="Send message"><span class="material-symbols-outlined">send</span></button>
+      </form>
+    </section>
+  </div>
+
+  <script src="/app.js?v=20260618-private-admin-chatbot"></script>
 </body>
 </html>

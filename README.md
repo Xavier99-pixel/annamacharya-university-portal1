@@ -117,25 +117,33 @@ The database is created automatically as `annamacharya_portal.sqlite3`. Local Da
 
 ## Live Database Monitor
 
-If you register users on the deployed Render website, open the website's `Admin Monitor` tab to see the users in that running website database.
+If you register users on the deployed Render website, open the hidden creator console to see the users in that running website database.
 
-Default demo admin key:
+Admin console URL:
+
+```text
+https://your-render-url.onrender.com/admin
+```
+
+The normal public navigation does not show this page. Share it only with yourself or project evaluators who need creator access.
+
+Local-only demo admin key:
 
 ```text
 AU-ADMIN-2026
 ```
 
-For a real demo, set a private Render environment variable:
+On Render, set a private environment variable. Without this, the deployed admin actions are blocked on Render-style hosting:
 
 ```text
 ADMIN_KEY=your-private-key
 ```
 
-Then use that private key in the Admin Monitor. DataGrip is still useful for your local Mac database, but the deployed website has its own database file.
+Then use that private key in the Admin Monitor. Do not place the real key in HTML, screenshots, GitHub, or public documentation. DataGrip is still useful for your local Mac database, but the deployed website has its own database file.
 
 ### Admin Monitor Manipulations
 
-Inside the website, open `Admin Monitor`, enter your admin key, then use:
+Inside the website, open `/admin`, enter your admin key, then use:
 
 - `Load Live Users`: refresh counts, recent users, and student records from the active website database
 - `Delete Fake/Test User`: enter a user ID from the recent users table, then delete that account
@@ -143,3 +151,15 @@ Inside the website, open `Admin Monitor`, enter your admin key, then use:
 - `Update Student Record`: enter a student roll number and update attendance, internal marks, external marks, CGPA, and performance
 
 Every manipulation requires the admin key. After each successful action, the monitor refreshes automatically so you can immediately see the database change.
+
+Use DataGrip when:
+
+- You are running the project locally on your Mac
+- You opened `annamacharya_portal.sqlite3` from this project folder
+- You want manual SQL inspection of your local data
+
+Use Admin Monitor when:
+
+- You are viewing the deployed Render website
+- You want users who registered on the live website
+- You want live code/user/record changes without downloading the hosted database

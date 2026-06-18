@@ -22,7 +22,12 @@ SESSION_TTL_DAYS = 7
 OTP_TTL_MINUTES = 10
 DEFAULT_FACULTY_CODES = ("AU-FAC-2026", "AU-STAFF-1001", "AITS-FAC-7788")
 DEFAULT_HOD_CODES = ("AU-HOD-CSE-2026", "AU-HOD-MBA-2026", "AU-HOD-ADMIN-2026")
-ADMIN_KEY = os.environ.get("ADMIN_KEY", "AU-ADMIN-2026")
+LOCAL_ADMIN_KEY = "AU-ADMIN-2026"
+RUNNING_ON_RENDER = any(
+    os.environ.get(key)
+    for key in ("RENDER", "RENDER_SERVICE_ID", "RENDER_EXTERNAL_URL")
+)
+ADMIN_KEY = os.environ.get("ADMIN_KEY") or ("" if RUNNING_ON_RENDER else LOCAL_ADMIN_KEY)
 
 
 def utc_now() -> datetime:
@@ -332,7 +337,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             if parsed.path.startswith("/api/"):
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
-            if parsed.path == "/":
+            if parsed.path in {"/", "/admin"}:
                 self.path = "/index.html"
             return super().do_GET()
         except ValueError as exc:
@@ -736,6 +741,16 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 LIMIT 50
                 """
             ).fetchall()
+            codes = db.execute(
+                """
+                SELECT 'faculty' AS code_type, code, label, active, created_at
+                FROM faculty_codes
+                UNION ALL
+                SELECT 'hod' AS code_type, code, label, active, created_at
+                FROM hod_codes
+                ORDER BY code_type, code
+                """
+            ).fetchall()
         counts = {"student": 0, "faculty": 0, "hod": 0}
         for row in role_rows:
             counts[row["role"]] = row["total"]
@@ -747,6 +762,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 "total_users": sum(counts.values()),
                 "recent_users": [dict(row) for row in recent_users],
                 "student_records": [dict(row) for row in records],
+                "codes": [dict(row) for row in codes],
                 "note": "This shows the database used by the running website instance.",
             }
         )
@@ -904,7 +920,8 @@ def validate_staff_codes(role: str, faculty_code: str | None, hod_code: str | No
 
 
 def verify_admin_key(value) -> None:
-    if not hmac.compare_digest(clean(value), ADMIN_KEY):
+    candidate = clean(value)
+    if not ADMIN_KEY or not candidate or not hmac.compare_digest(candidate, ADMIN_KEY):
         raise ValueError("Valid admin key is required.")
 
 

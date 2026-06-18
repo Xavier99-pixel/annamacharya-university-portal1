@@ -7,6 +7,7 @@ const state = {
   students: [],
   faculty: [],
   otpVerifiedPhone: "",
+  adminUnlocked: false,
 };
 
 const views = Array.from(document.querySelectorAll(".view"));
@@ -24,15 +25,19 @@ const refreshAdminBtn = document.getElementById("refreshAdminBtn");
 const adminDeleteUserForm = document.getElementById("adminDeleteUserForm");
 const adminCodeForm = document.getElementById("adminCodeForm");
 const adminRecordForm = document.getElementById("adminRecordForm");
+const chatbotToggle = document.getElementById("chatbotToggle");
+const chatbotPanel = document.getElementById("chatbotPanel");
+const chatbotClose = document.getElementById("chatbotClose");
+const chatbotForm = document.getElementById("chatbotForm");
+const chatbotInput = document.getElementById("chatbotInput");
+const chatbotMessages = document.getElementById("chatbotMessages");
 
 document.getElementById("enterPortal").addEventListener("click", () => {
   splash.style.transition = "opacity 520ms ease, transform 520ms ease";
   splash.style.opacity = "0";
   splash.style.transform = "scale(1.025)";
   setTimeout(() => {
-    splash.classList.add("is-hidden");
-    app.classList.remove("is-hidden");
-    showView(state.user ? dashboardForRole(state.user.role) : "roles");
+    revealPortal(state.user ? dashboardForRole(state.user.role) : isAdminRoute() ? "admin-monitor" : "roles");
   }, 540);
 });
 
@@ -175,6 +180,17 @@ refreshAdminBtn.addEventListener("click", loadAdminOverview);
 adminDeleteUserForm.addEventListener("submit", handleAdminDeleteUser);
 adminCodeForm.addEventListener("submit", handleAdminCode);
 adminRecordForm.addEventListener("submit", handleAdminRecord);
+chatbotToggle.addEventListener("click", toggleChatbot);
+chatbotClose.addEventListener("click", closeChatbot);
+chatbotForm.addEventListener("submit", handleChatbotSubmit);
+document.querySelectorAll("[data-chat-prompt]").forEach((button) => {
+  button.addEventListener("click", () => askChatbot(button.dataset.chatPrompt));
+});
+window.addEventListener("hashchange", () => {
+  if (isAdminRoute()) {
+    revealPortal("admin-monitor");
+  }
+});
 
 async function hydrate() {
   try {
@@ -182,11 +198,28 @@ async function hydrate() {
     const result = await response.json();
     if (result.authenticated) {
       state.user = result.user;
-      await renderWorkspace(result.user);
     }
   } catch {
     notify("Could not check existing login session.", "error");
   }
+  if (isAdminRoute()) {
+    revealPortal("admin-monitor");
+    return;
+  }
+  if (state.user) {
+    await renderWorkspace(state.user);
+  }
+}
+
+function revealPortal(id) {
+  splash.classList.add("is-hidden");
+  app.classList.remove("is-hidden");
+  showView(id);
+}
+
+function isAdminRoute() {
+  const path = window.location.pathname.replace(/\/$/, "");
+  return path === "/admin" || window.location.hash === "#admin";
 }
 
 function showView(id) {
@@ -285,6 +318,7 @@ async function loadAdminOverview() {
 }
 
 function renderAdminOverview(result) {
+  setAdminUnlocked(true);
   const counts = result.counts || {};
   document.getElementById("adminDbPath").textContent = `Active database: ${result.database_path}`;
   document.getElementById("adminCounts").innerHTML = [
@@ -323,6 +357,23 @@ function renderAdminOverview(result) {
       <td>${escapeHtml(record.performance || "Not updated")}</td>
     </tr>
   `).join("") || emptyRow(9, "No student academic records found.");
+
+  document.getElementById("adminCodesTable").innerHTML = (result.codes || []).map((code) => `
+    <tr>
+      <td>${escapeHtml(code.code_type === "hod" ? "HOD" : "Faculty")}</td>
+      <td>${escapeHtml(code.code)}</td>
+      <td>${escapeHtml(code.label)}</td>
+      <td><span class="${code.active ? "status-pill active" : "status-pill inactive"}">${code.active ? "Active" : "Inactive"}</span></td>
+      <td>${escapeHtml(formatDate(code.created_at))}</td>
+    </tr>
+  `).join("") || emptyRow(5, "No faculty or HOD codes found.");
+}
+
+function setAdminUnlocked(unlocked) {
+  state.adminUnlocked = unlocked;
+  document.querySelectorAll(".admin-secure").forEach((section) => {
+    section.classList.toggle("is-hidden", !unlocked);
+  });
 }
 
 async function handleAdminDeleteUser(event) {
@@ -601,6 +652,70 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function toggleChatbot() {
+  const open = chatbotPanel.classList.toggle("is-hidden");
+  chatbotToggle.setAttribute("aria-expanded", String(!open));
+  if (!open) chatbotInput.focus();
+}
+
+function closeChatbot() {
+  chatbotPanel.classList.add("is-hidden");
+  chatbotToggle.setAttribute("aria-expanded", "false");
+}
+
+function handleChatbotSubmit(event) {
+  event.preventDefault();
+  askChatbot(chatbotInput.value);
+  chatbotInput.value = "";
+}
+
+function askChatbot(question) {
+  const cleanQuestion = String(question || "").trim();
+  if (!cleanQuestion) return;
+  appendChatMessage(cleanQuestion, "user-message");
+  appendChatMessage(answerChatbot(cleanQuestion), "bot-message");
+}
+
+function appendChatMessage(message, className) {
+  const row = document.createElement("div");
+  row.className = className;
+  row.textContent = message;
+  chatbotMessages.appendChild(row);
+  chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+}
+
+function answerChatbot(question) {
+  const q = question.toLowerCase();
+  if (q.includes("student") || q.includes("register") || q.includes("roll")) {
+    return "Student flow: click Student Registration, enter profile/photo/course/branch/year/semester/roll number, verify phone OTP, create password, then login with roll number and password.";
+  }
+  if (q.includes("faculty") || q.includes("marks") || q.includes("attendance")) {
+    return "Faculty flow: register with a university faculty code, login as Faculty with that code, then use the Faculty Workspace to update student attendance, internal marks, external marks, CGPA and performance by roll number.";
+  }
+  if (q.includes("hod") || q.includes("head")) {
+    return "HOD flow: check Register as HOD, use only the HOD code, create password, then login as HOD using the HOD code. HODs can monitor faculty attendance and student academic records.";
+  }
+  if (q.includes("admin") || q.includes("monitor") || q.includes("database")) {
+    return "Admin flow: open the hidden creator URL /admin, enter ADMIN_KEY, click Load Live Users, then manage live Render database users, codes, and student records. DataGrip only shows your local Mac SQLite file unless you import hosted data.";
+  }
+  if (q.includes("datagrip") || q.includes("sqlite")) {
+    return "DataGrip is best for local SQLite management. The deployed Render website uses its own SQLite file, so use Admin Monitor for live website users. Local DataGrip will not automatically show Render registrations.";
+  }
+  if (q.includes("architecture") || q.includes("backend") || q.includes("frontend") || q.includes("api")) {
+    return "Architecture: HTML/CSS/JavaScript frontend sends JSON with fetch() to Python app.py API routes. Python validates roles, hashes passwords, manages sessions, and reads/writes SQLite tables.";
+  }
+  if (q.includes("otp") || q.includes("phone")) {
+    return "OTP flow: student enters phone, clicks Send OTP, backend stores a 6 digit demo OTP, student verifies it, then registration is allowed. A real production app would connect an SMS provider.";
+  }
+  if (q.includes("deploy") || q.includes("render")) {
+    return "Deployment: push latest GitHub main branch, then deploy on Render. Free Render uses temporary SQLite at /tmp, so data can reset on redeploy. For permanent data, use a persistent disk or cloud database.";
+  }
+  if (q.includes("security") || q.includes("password") || q.includes("jwt")) {
+    return "Security: this portal uses PBKDF2-HMAC password hashing and HttpOnly session cookies. It does not use JWT currently. Admin actions require ADMIN_KEY.";
+  }
+  return "I can help with student registration, faculty login, HOD login, Admin Monitor, DataGrip vs live database, OTP, deployment, and the portal architecture. Try asking: How do I use admin panel?";
 }
 
 hydrate();
