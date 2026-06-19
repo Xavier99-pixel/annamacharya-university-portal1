@@ -310,23 +310,22 @@ main {
 }
 
 .powered-by-srivensy {
-  position: absolute;
-  right: 0;
-  bottom: 0;
   display: grid;
-  grid-template-columns: auto minmax(150px, 230px);
+  grid-template-columns: auto minmax(180px, 260px);
   align-items: center;
-  gap: 10px;
-  max-width: min(380px, 100%);
-  min-height: 58px;
-  padding: 9px 10px 9px 14px;
-  border: 1px solid rgba(0, 32, 69, 0.12);
+  gap: 12px;
+  width: 100%;
+  min-height: 66px;
+  margin-top: 10px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid rgba(100, 64, 216, 0.26);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
+  background:
+    linear-gradient(135deg, rgba(245, 241, 255, 0.92), rgba(255, 255, 255, 0.98)),
+    #fff;
   color: var(--primary);
   text-decoration: none;
-  box-shadow: 0 18px 46px rgba(0, 32, 69, 0.14);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 30px rgba(0, 32, 69, 0.1);
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
@@ -348,7 +347,7 @@ main {
 .powered-by-srivensy img {
   display: block;
   width: 100%;
-  max-height: 42px;
+  max-height: 50px;
   object-fit: contain;
 }
 
@@ -1387,13 +1386,6 @@ tbody tr:hover {
 
   .hero-view {
     min-height: auto;
-    padding-bottom: 84px;
-  }
-
-  .powered-by-srivensy {
-    right: auto;
-    left: 0;
-    bottom: 0;
   }
 
   .stat-grid {
@@ -1452,10 +1444,8 @@ tbody tr:hover {
   }
 
   .powered-by-srivensy {
-    position: static;
     grid-template-columns: 1fr;
     justify-items: start;
-    margin-top: 24px;
   }
 
   .powered-by-srivensy img {
