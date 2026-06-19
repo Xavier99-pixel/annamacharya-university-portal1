@@ -198,6 +198,7 @@ main {
 }
 
 .hero-view {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
   align-items: center;
@@ -306,6 +307,49 @@ main {
 
 .campus-link:hover {
   text-decoration: underline;
+}
+
+.powered-by-srivensy {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: auto minmax(150px, 230px);
+  align-items: center;
+  gap: 10px;
+  max-width: min(380px, 100%);
+  min-height: 58px;
+  padding: 9px 10px 9px 14px;
+  border: 1px solid rgba(0, 32, 69, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--primary);
+  text-decoration: none;
+  box-shadow: 0 18px 46px rgba(0, 32, 69, 0.14);
+  backdrop-filter: blur(10px);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.powered-by-srivensy:hover {
+  transform: translateY(-2px);
+  border-color: rgba(100, 64, 216, 0.34);
+  box-shadow: 0 22px 54px rgba(0, 32, 69, 0.2);
+}
+
+.powered-by-srivensy span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.powered-by-srivensy img {
+  display: block;
+  width: 100%;
+  max-height: 42px;
+  object-fit: contain;
 }
 
 .location-band {
@@ -1343,6 +1387,13 @@ tbody tr:hover {
 
   .hero-view {
     min-height: auto;
+    padding-bottom: 84px;
+  }
+
+  .powered-by-srivensy {
+    right: auto;
+    left: 0;
+    bottom: 0;
   }
 
   .stat-grid {
@@ -1398,5 +1449,16 @@ tbody tr:hover {
   .chatbot {
     right: 12px;
     bottom: 12px;
+  }
+
+  .powered-by-srivensy {
+    position: static;
+    grid-template-columns: 1fr;
+    justify-items: start;
+    margin-top: 24px;
+  }
+
+  .powered-by-srivensy img {
+    max-width: 230px;
   }
 }
