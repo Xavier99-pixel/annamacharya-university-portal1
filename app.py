@@ -7,6 +7,7 @@ import hmac
 import io
 import json
 import os
+import re
 import secrets
 import sqlite3
 import tempfile
@@ -41,6 +42,52 @@ DEFAULT_FACULTY_CODES = ("AU-FAC-2026", "AU-STAFF-1001", "AITS-FAC-7788")
 DEFAULT_HOD_CODES = ("AU-HOD-CSE-2026", "AU-HOD-MBA-2026", "AU-HOD-ADMIN-2026")
 LOCAL_ADMIN_KEY = "AU-ADMIN-2026"
 ADMIN_KEY = os.environ.get("ADMIN_KEY") or ("" if RUNNING_ON_RENDER else LOCAL_ADMIN_KEY)
+SUBJECT_CATALOG = {
+    "btech": {
+        1: [
+            {"code": "24AEEE11T", "name": "Basic Electrical and Electronics Engineering", "credits": 3, "lab": False},
+            {"code": "24ACHE11T", "name": "Chemistry", "credits": 3, "lab": False},
+            {"code": "24AMAT11T", "name": "Matrix Theory and Calculus", "credits": 3, "lab": False},
+            {"code": "24ACSE11T", "name": "Computational Problem Solving", "credits": 3, "lab": False},
+            {"code": "24AMEC11T", "name": "Engineering Drawing", "credits": 3, "lab": False},
+            {"code": "24AEEE11L", "name": "Basic Electrical and Electronics Engineering Lab", "credits": 1, "lab": True},
+            {"code": "24ACHE11L", "name": "Chemistry Lab", "credits": 1, "lab": True},
+            {"code": "24ACSE11L", "name": "Computational Problem-Solving Lab", "credits": 1, "lab": True},
+        ],
+        2: [
+            {"code": "24APHY21T", "name": "Applied Physics", "credits": 3, "lab": False},
+            {"code": "24AMAT21T", "name": "Differential Equations and Transform Techniques", "credits": 3, "lab": False},
+            {"code": "24AENG21T", "name": "English for Engineers", "credits": 3, "lab": False},
+            {"code": "24AECE22T", "name": "Electronic Devices and Circuits", "credits": 3, "lab": False},
+            {"code": "24AEEE23T", "name": "Network Analysis", "credits": 3, "lab": False},
+            {"code": "24AMEC22L", "name": "Engineering and IT Workshop", "credits": 3, "lab": True},
+            {"code": "24APHY21L", "name": "Applied Physics Lab", "credits": 1, "lab": True},
+            {"code": "24AENG21L", "name": "English Language Communication Skills Lab", "credits": 1, "lab": True},
+            {"code": "24AECE22L", "name": "Electronic Devices and Circuits Lab", "credits": 1, "lab": True},
+        ],
+        3: [
+            {"code": "24AMAT33T", "name": "Discrete Mathematics", "credits": 3, "lab": False},
+            {"code": "24AUHV31T", "name": "Universal Human Values-II", "credits": 3, "lab": False},
+            {"code": "24ACSE31T", "name": "Advanced Data Structures and Algorithm Analysis", "credits": 3, "lab": False},
+            {"code": "24ACSE32T", "name": "Object Oriented Programming through Java", "credits": 3, "lab": False},
+            {"code": "24ACSE33T", "name": "Database Management Systems", "credits": 3, "lab": False},
+            {"code": "24ACSE34T", "name": "Computer Organization", "credits": 3, "lab": False},
+            {"code": "24ACSE31L", "name": "Advanced Data Structures Lab", "credits": 1.5, "lab": True},
+            {"code": "24ACSE33L", "name": "Database Management Systems Lab", "credits": 1.5, "lab": True},
+        ],
+        4: [
+            {"code": "24AMAT41T", "name": "Probability and Statistics", "credits": 3, "lab": False},
+            {"code": "24ACSE41T", "name": "Operating Systems", "credits": 3, "lab": False},
+            {"code": "24ACSE42T", "name": "Design and Analysis of Algorithms", "credits": 3, "lab": False},
+            {"code": "24ACSE43T", "name": "Artificial Intelligence", "credits": 3, "lab": False},
+            {"code": "24ACSE44T", "name": "Software Engineering", "credits": 3, "lab": False},
+            {"code": "24ACSE45T", "name": "Web Technologies", "credits": 3, "lab": False},
+            {"code": "24ACSE41L", "name": "Operating Systems Lab", "credits": 1.5, "lab": True},
+            {"code": "24ACSE43L", "name": "Artificial Intelligence Lab", "credits": 1.5, "lab": True},
+            {"code": "24ACSE45L", "name": "Web Technologies Lab", "credits": 1.5, "lab": True},
+        ],
+    }
+}
 
 
 def utc_now() -> datetime:
@@ -126,6 +173,28 @@ def init_db() -> None:
                 updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
                 updated_at TEXT,
                 UNIQUE(student_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS exam_marks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                semester INTEGER NOT NULL,
+                subject_code TEXT NOT NULL,
+                subject_name TEXT NOT NULL,
+                credits REAL DEFAULT 3,
+                is_lab INTEGER NOT NULL DEFAULT 0,
+                mid1 REAL DEFAULT 0,
+                mid2 REAL DEFAULT 0,
+                assignment1 REAL DEFAULT 0,
+                assignment2 REAL DEFAULT 0,
+                lab_internal REAL DEFAULT 0,
+                external_theory REAL DEFAULT 0,
+                external_lab REAL DEFAULT 0,
+                final_grade TEXT DEFAULT 'N/A',
+                status TEXT DEFAULT 'Pending',
+                updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                updated_at TEXT,
+                UNIQUE(student_id, semester, subject_code)
             );
 
             CREATE TABLE IF NOT EXISTS faculty_attendance (
@@ -315,6 +384,284 @@ def public_user(row: sqlite3.Row) -> dict:
     }
 
 
+def normalize_course_key(course: str | None) -> str:
+    value = clean(course).lower().replace(".", "").replace(" ", "")
+    if "btech" in value or value in {"be", "bacheloroftechnology"}:
+        return "btech"
+    return value or "generic"
+
+
+def parse_semester_number(semester: str | None, year: str | None = None) -> int:
+    semester_text = clean(semester)
+    text = f"{semester_text} {clean(year)}".lower()
+    for pattern in (r"(?:semester|sem)\s*([1-8])", r"([1-8])\s*(?:st|nd|rd|th)?\s*(?:semester|sem)"):
+        match = re.search(pattern, text)
+        if match:
+            return max(1, min(8, int(match.group(1))))
+    year_match = re.search(r"([1-4])\s*(?:st|nd|rd|th)?\s*year", text)
+    if year_match:
+        return max(1, min(8, int(year_match.group(1)) * 2))
+    return 1
+
+
+def ordinal(number: int) -> str:
+    if 10 <= number % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(number % 10, "th")
+    return f"{number}{suffix}"
+
+
+def semester_status(semester: int, current_semester: int) -> str:
+    if semester == current_semester:
+        return "Ongoing"
+    if semester < current_semester:
+        return "Completed"
+    return "Upcoming"
+
+
+def generic_subjects(semester: int) -> list[dict]:
+    return [
+        {"code": f"AU{semester:02d}CORE1", "name": f"Semester {semester} Core Theory", "credits": 3, "lab": False},
+        {"code": f"AU{semester:02d}CORE2", "name": f"Semester {semester} Program Elective", "credits": 3, "lab": False},
+        {"code": f"AU{semester:02d}LAB1", "name": f"Semester {semester} Practical Lab", "credits": 1.5, "lab": True},
+    ]
+
+
+def subjects_for_student(student: sqlite3.Row | dict, semester: int) -> list[dict]:
+    course_key = normalize_course_key(student["course"] if student else "")
+    return SUBJECT_CATALOG.get(course_key, {}).get(semester) or generic_subjects(semester)
+
+
+def ensure_exam_rows(db: sqlite3.Connection, student: sqlite3.Row | dict) -> None:
+    current_semester = parse_semester_number(student["semester"], student["year"])
+    for semester in range(1, current_semester + 1):
+        for subject in subjects_for_student(student, semester):
+            db.execute(
+                """
+                INSERT OR IGNORE INTO exam_marks (
+                    student_id, semester, subject_code, subject_name, credits, is_lab, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    student["id"],
+                    semester,
+                    subject["code"],
+                    subject["name"],
+                    subject["credits"],
+                    1 if subject.get("lab") else 0,
+                    utc_now().isoformat(),
+                ),
+            )
+
+
+def build_exam_payload(db: sqlite3.Connection, student: sqlite3.Row) -> dict:
+    ensure_exam_rows(db, student)
+    current_semester = parse_semester_number(student["semester"], student["year"])
+    rows = db.execute(
+        """
+        SELECT semester, subject_code, subject_name, credits, is_lab, mid1, mid2,
+               assignment1, assignment2, lab_internal, external_theory,
+               external_lab, final_grade, status, updated_at
+        FROM exam_marks
+        WHERE student_id = ?
+        ORDER BY semester, subject_code
+        """,
+        (student["id"],),
+    ).fetchall()
+    grouped: dict[int, list[dict]] = {}
+    for row in rows:
+        grouped.setdefault(row["semester"], []).append(dict(row))
+    semesters = []
+    for semester in range(1, current_semester + 1):
+        subjects = grouped.get(semester, [])
+        semesters.append(
+            {
+                "semester": semester,
+                "label": f"{ordinal(semester)} Semester",
+                "status": semester_status(semester, current_semester),
+                "subjects": subjects,
+            }
+        )
+    return {
+        "student": public_user(student),
+        "current_semester": current_semester,
+        "semesters": semesters,
+    }
+
+
+def resolve_exam_subject(student: sqlite3.Row, semester: int, subject_code: str, subject_name: str) -> dict:
+    catalog_subjects = subjects_for_student(student, semester)
+    normalized_code = clean(subject_code).upper()
+    normalized_name = clean(subject_name)
+    for subject in catalog_subjects:
+        if normalized_code and normalized_code == subject["code"].upper():
+            return subject
+        if normalized_name and normalized_name.lower() == subject["name"].lower():
+            return subject
+    if not normalized_code:
+        raise ValueError("Subject code is required.")
+    return {
+        "code": normalized_code,
+        "name": normalized_name or normalized_code,
+        "credits": 3,
+        "lab": normalized_code.endswith("L") or "lab" in normalized_name.lower(),
+    }
+
+
+def apply_exam_mark_update(
+    db: sqlite3.Connection,
+    data: dict,
+    updated_by: int | None = None,
+) -> str:
+    roll_number = clean(data.get("roll_number")).upper()
+    if not roll_number:
+        raise ValueError("Student roll number is required.")
+    semester = parse_positive_int(data.get("semester"), "Semester")
+    if semester > 8:
+        raise ValueError("Semester must be between 1 and 8.")
+
+    student = db.execute(
+        "SELECT * FROM users WHERE role = 'student' AND roll_number = ?",
+        (roll_number,),
+    ).fetchone()
+    if not student:
+        raise ValueError("No student found for that roll number.")
+
+    ensure_exam_rows(db, student)
+    subject = resolve_exam_subject(
+        student,
+        semester,
+        clean(data.get("subject_code")),
+        clean(data.get("subject_name")),
+    )
+    scores = {
+        "mid1": parse_optional_score(data.get("mid1"), "Mid Examination 1", 0, 100),
+        "mid2": parse_optional_score(data.get("mid2"), "Mid Examination 2", 0, 100),
+        "assignment1": parse_optional_score(data.get("assignment1"), "Assignment 1", 0, 100),
+        "assignment2": parse_optional_score(data.get("assignment2"), "Assignment 2", 0, 100),
+        "lab_internal": parse_optional_score(data.get("lab_internal"), "Lab internal", 0, 100),
+        "external_theory": parse_optional_score(data.get("external_theory"), "External theory", 0, 100),
+        "external_lab": parse_optional_score(data.get("external_lab"), "External lab", 0, 100),
+    }
+    final_grade = clean(data.get("final_grade")).upper() or None
+    status = clean(data.get("status")) or None
+    updated_at = utc_now().isoformat()
+    db.execute(
+        """
+        INSERT INTO exam_marks (
+            student_id, semester, subject_code, subject_name, credits, is_lab,
+            mid1, mid2, assignment1, assignment2, lab_internal, external_theory,
+            external_lab, final_grade, status, updated_by, updated_at
+        )
+        VALUES (
+            ?, ?, ?, ?, ?, ?,
+            COALESCE(?, 0), COALESCE(?, 0), COALESCE(?, 0), COALESCE(?, 0),
+            COALESCE(?, 0), COALESCE(?, 0), COALESCE(?, 0),
+            COALESCE(?, 'N/A'), COALESCE(?, 'Pending'), ?, ?
+        )
+        ON CONFLICT(student_id, semester, subject_code) DO UPDATE SET
+            subject_name = excluded.subject_name,
+            credits = excluded.credits,
+            is_lab = excluded.is_lab,
+            mid1 = COALESCE(?, exam_marks.mid1),
+            mid2 = COALESCE(?, exam_marks.mid2),
+            assignment1 = COALESCE(?, exam_marks.assignment1),
+            assignment2 = COALESCE(?, exam_marks.assignment2),
+            lab_internal = COALESCE(?, exam_marks.lab_internal),
+            external_theory = COALESCE(?, exam_marks.external_theory),
+            external_lab = COALESCE(?, exam_marks.external_lab),
+            final_grade = COALESCE(?, exam_marks.final_grade),
+            status = COALESCE(?, exam_marks.status),
+            updated_by = excluded.updated_by,
+            updated_at = excluded.updated_at
+        """,
+        (
+            student["id"],
+            semester,
+            subject["code"],
+            subject["name"],
+            subject["credits"],
+            1 if subject.get("lab") else 0,
+            scores["mid1"],
+            scores["mid2"],
+            scores["assignment1"],
+            scores["assignment2"],
+            scores["lab_internal"],
+            scores["external_theory"],
+            scores["external_lab"],
+            final_grade,
+            status,
+            updated_by,
+            updated_at,
+            scores["mid1"],
+            scores["mid2"],
+            scores["assignment1"],
+            scores["assignment2"],
+            scores["lab_internal"],
+            scores["external_theory"],
+            scores["external_lab"],
+            final_grade,
+            status,
+        ),
+    )
+    refresh_academic_summary_from_exams(db, student["id"], updated_by)
+    return f"Updated {subject['name']} exam marks for {student['name']}."
+
+
+def refresh_academic_summary_from_exams(
+    db: sqlite3.Connection,
+    student_id: int,
+    updated_by: int | None,
+) -> None:
+    row = db.execute(
+        """
+        SELECT
+            AVG(
+                CASE
+                    WHEN (mid1 + mid2 + assignment1 + assignment2 + lab_internal) > 100
+                    THEN 100
+                    ELSE (mid1 + mid2 + assignment1 + assignment2 + lab_internal)
+                END
+            ) AS internal_avg,
+            AVG(
+                CASE
+                    WHEN (external_theory + external_lab) > 100
+                    THEN 100
+                    ELSE (external_theory + external_lab)
+                END
+            ) AS external_avg
+        FROM exam_marks
+        WHERE student_id = ?
+          AND (
+              (mid1 + mid2 + assignment1 + assignment2 + lab_internal + external_theory + external_lab) > 0
+              OR COALESCE(final_grade, 'N/A') != 'N/A'
+              OR COALESCE(status, 'Pending') != 'Pending'
+          )
+        """,
+        (student_id,),
+    ).fetchone()
+    internal_marks = round(row["internal_avg"] or 0, 2)
+    external_marks = round(row["external_avg"] or 0, 2)
+    marks = round((internal_marks + external_marks) / 2, 2)
+    db.execute(
+        """
+        INSERT INTO academic_records (
+            student_id, internal_marks, external_marks, marks, updated_by, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(student_id) DO UPDATE SET
+            internal_marks = excluded.internal_marks,
+            external_marks = excluded.external_marks,
+            marks = excluded.marks,
+            updated_by = excluded.updated_by,
+            updated_at = excluded.updated_at
+        """,
+        (student_id, internal_marks, external_marks, marks, updated_by, utc_now().isoformat()),
+    )
+
+
 def get_session_user(headers) -> dict | None:
     cookie = SimpleCookie(headers.get("Cookie", ""))
     morsel = cookie.get("au_session")
@@ -375,6 +722,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 return
             if parsed.path == "/api/notices":
                 self.notices()
+                return
+            if parsed.path == "/api/exams":
+                self.exams(parsed.query)
                 return
             if parsed.path == "/api/faculty-codes":
                 with connect_db() as db:
@@ -438,6 +788,8 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 self.logout()
             elif parsed.path == "/api/student-record":
                 self.update_student_record()
+            elif parsed.path == "/api/exam-mark":
+                self.update_exam_mark()
             elif parsed.path == "/api/faculty-attendance":
                 self.update_faculty_attendance()
             elif parsed.path == "/api/admin/action":
@@ -580,6 +932,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                     """,
                     (user["id"], created_at),
                 )
+                ensure_exam_rows(db, user)
             if role in {"faculty", "hod"}:
                 db.execute(
                     """
@@ -711,6 +1064,28 @@ class PortalHandler(SimpleHTTPRequestHandler):
             ).fetchall()
         self.send_json({"ok": True, "notices": [dict(row) for row in rows]})
 
+    def exams(self, query: str) -> None:
+        viewer = require_user(self.headers, {"student", "faculty", "hod"})
+        params = parse_qs(query)
+        requested_roll = clean((params.get("roll_number") or [""])[0]).upper()
+        with connect_db() as db:
+            if viewer["role"] == "student":
+                student = db.execute(
+                    "SELECT * FROM users WHERE id = ? AND role = 'student'",
+                    (viewer["id"],),
+                ).fetchone()
+            else:
+                if not requested_roll:
+                    raise ValueError("Student roll number is required.")
+                student = db.execute(
+                    "SELECT * FROM users WHERE role = 'student' AND roll_number = ?",
+                    (requested_roll,),
+                ).fetchone()
+            if not student:
+                raise ValueError("No student found for that roll number.")
+            payload = build_exam_payload(db, student)
+        self.send_json({"ok": True, "viewer": viewer, **payload})
+
     def students(self) -> None:
         user = require_user(self.headers, {"faculty", "hod"})
         with connect_db() as db:
@@ -784,6 +1159,13 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 ),
             )
         self.send_json({"ok": True, "message": "Student academic record updated."})
+
+    def update_exam_mark(self) -> None:
+        user = require_user(self.headers, {"faculty", "hod"})
+        data = self.read_json()
+        with connect_db() as db:
+            message = apply_exam_mark_update(db, data, user["id"])
+        self.send_json({"ok": True, "message": message})
 
     def faculty(self) -> None:
         user = require_user(self.headers, {"hod"})
@@ -1118,6 +1500,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             with connect_db() as db:
                 db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
                 db.execute("DELETE FROM academic_records WHERE student_id = ?", (user_id,))
+                db.execute("DELETE FROM exam_marks WHERE student_id = ?", (user_id,))
                 db.execute("DELETE FROM faculty_attendance WHERE faculty_id = ?", (user_id,))
                 cursor = db.execute("DELETE FROM users WHERE id = ?", (user_id,))
             if not cursor.rowcount:
@@ -1228,6 +1611,12 @@ class PortalHandler(SimpleHTTPRequestHandler):
                     ),
                 )
             self.send_json({"ok": True, "message": f"Updated record for {student['name']}."})
+            return
+
+        if action == "update_exam_mark":
+            with connect_db() as db:
+                message = apply_exam_mark_update(db, data, None)
+            self.send_json({"ok": True, "message": message})
             return
 
         raise ValueError("Unknown admin action.")
@@ -1551,6 +1940,12 @@ def parse_score(value, label: str, minimum: float, maximum: float) -> float:
     if score < minimum or score > maximum:
         raise ValueError(f"{label} must be between {minimum:g} and {maximum:g}.")
     return score
+
+
+def parse_optional_score(value, label: str, minimum: float, maximum: float) -> float | None:
+    if clean(value) == "":
+        return None
+    return parse_score(value, label, minimum, maximum)
 
 
 def require_user(headers, allowed_roles: set[str]) -> dict:

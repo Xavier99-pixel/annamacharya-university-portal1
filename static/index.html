@@ -228,14 +228,6 @@
           <div id="adminMetrics" class="stat-grid intelligence-grid"></div>
           <div id="adminDistribution" class="distribution-list"></div>
         </section>
-        <section class="work-card admin-guide">
-          <h3>Creator Access Guide</h3>
-          <div class="guide-grid">
-            <div><strong>Private URL</strong><span>Open `/admin` on your deployed website. Normal users only see Roles and Login.</span></div>
-            <div><strong>Admin Key</strong><span>Set `ADMIN_KEY` in Render for a private key. Never show this key inside the website UI.</span></div>
-            <div><strong>Live Database</strong><span>Use this panel for Render users. DataGrip only manages your local Mac SQLite file unless you download/import data.</span></div>
-          </div>
-        </section>
         <section class="work-card admin-secure is-hidden">
           <div class="table-head">
             <h3>Recent Registered Users</h3>
@@ -354,6 +346,25 @@
               </div>
               <button class="ghost-btn" type="submit"><span class="material-symbols-outlined">edit_note</span>Update Record</button>
             </form>
+            <form id="adminExamMarkForm" class="exam-mark-form" data-admin-exam="true">
+              <h4>Update Semester Exam Marks</h4>
+              <div class="grid two">
+                <label>Roll Number<input name="roll_number" required placeholder="Example: 24AFAID153"></label>
+                <label>Semester<select name="semester" required><option value="1">Semester 1</option><option value="2">Semester 2</option><option value="3">Semester 3</option><option value="4">Semester 4</option><option value="5">Semester 5</option><option value="6">Semester 6</option><option value="7">Semester 7</option><option value="8">Semester 8</option></select></label>
+                <label>Subject<select name="subject_code" data-subject-select required></select></label>
+                <label>Subject Name<input name="subject_name" placeholder="Only needed for custom subject"></label>
+                <label>Mid Examination 1<input name="mid1" type="number" min="0" max="100" step="0.01" placeholder="Internal"></label>
+                <label>Mid Examination 2<input name="mid2" type="number" min="0" max="100" step="0.01" placeholder="Internal"></label>
+                <label>Assignment 1<input name="assignment1" type="number" min="0" max="100" step="0.01" placeholder="Internal"></label>
+                <label>Assignment 2<input name="assignment2" type="number" min="0" max="100" step="0.01" placeholder="Internal"></label>
+                <label>Lab Internal<input name="lab_internal" type="number" min="0" max="100" step="0.01" placeholder="Lab internal"></label>
+                <label>External Theory<input name="external_theory" type="number" min="0" max="100" step="0.01" placeholder="External"></label>
+                <label>External Lab<input name="external_lab" type="number" min="0" max="100" step="0.01" placeholder="External lab"></label>
+                <label>Final Grade<select name="final_grade"><option value="">Keep existing</option><option>S</option><option>A+</option><option>A</option><option>B</option><option>C</option><option>D</option><option>F</option></select></label>
+                <label>Status<select name="status"><option value="">Keep existing</option><option value="P">P</option><option value="F">F</option><option>Pending</option><option>Absent</option></select></label>
+              </div>
+              <button class="ghost-btn" type="submit"><span class="material-symbols-outlined">grading</span>Update Exam Marks</button>
+            </form>
           </div>
         </section>
       </section>
@@ -367,31 +378,54 @@
             <p id="dashMeta">Your account is active.</p>
           </div>
         </div>
-        <div class="dashboard-grid">
-          <article class="profile-card">
-            <span class="material-symbols-outlined">account_circle</span>
-            <h3>Profile</h3>
-            <p id="dashProfile">Your saved registration details appear here.</p>
-            <div class="saved-profile">
-              <img id="dashPhoto" src="/images/au1.jpeg" alt="Saved profile photo">
-              <dl id="dashDetails"></dl>
+        <div class="student-tabs" role="tablist" aria-label="Student dashboard tabs">
+          <button class="is-active" type="button" data-student-tab="overview"><span class="material-symbols-outlined">dashboard</span>Overview</button>
+          <button type="button" data-student-tab="exams"><span class="material-symbols-outlined">school</span>Exams</button>
+        </div>
+        <div id="studentOverviewPanel" class="student-panel">
+          <div class="dashboard-grid">
+            <article class="profile-card">
+              <span class="material-symbols-outlined">account_circle</span>
+              <h3>Profile</h3>
+              <p id="dashProfile">Your saved registration details appear here.</p>
+              <div class="saved-profile">
+                <img id="dashPhoto" src="/images/au1.jpeg" alt="Saved profile photo">
+                <dl id="dashDetails"></dl>
+              </div>
+            </article>
+            <article>
+              <span class="material-symbols-outlined">monitoring</span>
+              <h3>Academic Record</h3>
+              <dl id="studentAcademicRecord" class="metric-list"></dl>
+            </article>
+            <article>
+              <span class="material-symbols-outlined">lock</span>
+              <h3>Permissions</h3>
+              <p>Students can view only their own profile and academic record. Faculty and HOD workspaces are blocked for student accounts.</p>
+            </article>
+            <article>
+              <span class="material-symbols-outlined">campaign</span>
+              <h3>Notices</h3>
+              <div id="studentNotices" class="notice-list"></div>
+            </article>
+          </div>
+        </div>
+        <div id="studentExamPanel" class="student-panel is-hidden">
+          <section class="exam-performance-shell">
+            <div class="exam-phone-head">
+              <button id="examBackToList" type="button" aria-label="Back to semester list"><span class="material-symbols-outlined">arrow_back</span></button>
+              <h3 id="examPanelTitle">Exam Performance</h3>
             </div>
-          </article>
-          <article>
-            <span class="material-symbols-outlined">monitoring</span>
-            <h3>Academic Record</h3>
-            <dl id="studentAcademicRecord" class="metric-list"></dl>
-          </article>
-          <article>
-            <span class="material-symbols-outlined">lock</span>
-            <h3>Permissions</h3>
-            <p>Students can view only their own profile and academic record. Faculty and HOD workspaces are blocked for student accounts.</p>
-          </article>
-          <article>
-            <span class="material-symbols-outlined">campaign</span>
-            <h3>Notices</h3>
-            <div id="studentNotices" class="notice-list"></div>
-          </article>
+            <div id="semesterCards" class="semester-cards"></div>
+            <div id="semesterDetail" class="semester-detail is-hidden">
+              <div class="exam-mode-toggle" role="group" aria-label="Exam mark mode">
+                <button class="is-active" type="button" data-exam-mode="external">External marks<span class="material-symbols-outlined">chevron_right</span></button>
+                <button type="button" data-exam-mode="internal">Internal marks<span class="material-symbols-outlined">expand_more</span></button>
+              </div>
+              <div id="examStudentMeta" class="exam-student-meta"></div>
+              <div id="examSubjectList" class="exam-subject-list"></div>
+            </div>
+          </section>
         </div>
         <button id="logoutBtn" class="ghost-btn">
           <span class="material-symbols-outlined">logout</span>
@@ -421,7 +455,26 @@
             </div>
             <button class="primary-btn" type="submit"><span class="material-symbols-outlined">save</span>Save Student Record</button>
           </form>
-          <section class="work-card">
+          <form id="facultyExamMarkForm" class="portal-form work-card exam-mark-form">
+            <h3>Update Semester Exam Marks</h3>
+            <label>Roll Number<input name="roll_number" required placeholder="Example: 24AFAID153"></label>
+            <div class="grid two">
+              <label>Semester<select name="semester" required><option value="1">Semester 1</option><option value="2">Semester 2</option><option value="3">Semester 3</option><option value="4">Semester 4</option><option value="5">Semester 5</option><option value="6">Semester 6</option><option value="7">Semester 7</option><option value="8">Semester 8</option></select></label>
+              <label>Subject<select name="subject_code" data-subject-select required></select></label>
+              <label>Mid 1<input name="mid1" type="number" min="0" max="100" step="0.01" placeholder="Internal"></label>
+              <label>Mid 2<input name="mid2" type="number" min="0" max="100" step="0.01" placeholder="Internal"></label>
+              <label>Assignment 1<input name="assignment1" type="number" min="0" max="100" step="0.01"></label>
+              <label>Assignment 2<input name="assignment2" type="number" min="0" max="100" step="0.01"></label>
+              <label>Lab Internal<input name="lab_internal" type="number" min="0" max="100" step="0.01"></label>
+              <label>External Theory<input name="external_theory" type="number" min="0" max="100" step="0.01"></label>
+              <label>External Lab<input name="external_lab" type="number" min="0" max="100" step="0.01"></label>
+              <label>Final Grade<select name="final_grade"><option value="">Keep existing</option><option>S</option><option>A+</option><option>A</option><option>B</option><option>C</option><option>D</option><option>F</option></select></label>
+              <label>Status<select name="status"><option value="">Keep existing</option><option value="P">P</option><option value="F">F</option><option>Pending</option><option>Absent</option></select></label>
+              <label class="full-field">Custom Subject Name<input name="subject_name" placeholder="Only needed for custom subject code"></label>
+            </div>
+            <button class="primary-btn" type="submit"><span class="material-symbols-outlined">grading</span>Save Exam Marks</button>
+          </form>
+          <section class="work-card workspace-wide">
             <div class="table-head">
               <h3>Registered Students</h3>
               <input id="studentSearch" placeholder="Filter by roll no, name, course">
@@ -457,7 +510,26 @@
             <label>Performance<select name="performance" required><option>Excellent</option><option>Good</option><option>Average</option><option>Needs Improvement</option></select></label>
             <button class="primary-btn" type="submit"><span class="material-symbols-outlined">fact_check</span>Save Faculty Attendance</button>
           </form>
-          <section class="work-card">
+          <form id="hodExamMarkForm" class="portal-form work-card exam-mark-form">
+            <h3>Update Student Exam Marks</h3>
+            <label>Roll Number<input name="roll_number" required placeholder="Example: 24AFAID153"></label>
+            <div class="grid two">
+              <label>Semester<select name="semester" required><option value="1">Semester 1</option><option value="2">Semester 2</option><option value="3">Semester 3</option><option value="4">Semester 4</option><option value="5">Semester 5</option><option value="6">Semester 6</option><option value="7">Semester 7</option><option value="8">Semester 8</option></select></label>
+              <label>Subject<select name="subject_code" data-subject-select required></select></label>
+              <label>Mid 1<input name="mid1" type="number" min="0" max="100" step="0.01"></label>
+              <label>Mid 2<input name="mid2" type="number" min="0" max="100" step="0.01"></label>
+              <label>Assignment 1<input name="assignment1" type="number" min="0" max="100" step="0.01"></label>
+              <label>Assignment 2<input name="assignment2" type="number" min="0" max="100" step="0.01"></label>
+              <label>Lab Internal<input name="lab_internal" type="number" min="0" max="100" step="0.01"></label>
+              <label>External Theory<input name="external_theory" type="number" min="0" max="100" step="0.01"></label>
+              <label>External Lab<input name="external_lab" type="number" min="0" max="100" step="0.01"></label>
+              <label>Final Grade<select name="final_grade"><option value="">Keep existing</option><option>S</option><option>A+</option><option>A</option><option>B</option><option>C</option><option>D</option><option>F</option></select></label>
+              <label>Status<select name="status"><option value="">Keep existing</option><option value="P">P</option><option value="F">F</option><option>Pending</option><option>Absent</option></select></label>
+              <label class="full-field">Custom Subject Name<input name="subject_name" placeholder="Only needed for custom subject code"></label>
+            </div>
+            <button class="primary-btn" type="submit"><span class="material-symbols-outlined">grading</span>Save Exam Marks</button>
+          </form>
+          <section class="work-card workspace-wide">
             <div class="table-head">
               <h3>Faculty Directory</h3>
               <input id="facultySearch" placeholder="Filter by faculty code, name, department">
@@ -516,6 +588,6 @@
     </section>
   </div>
 
-  <script src="/app.js?v=20260618-evaluation-otp-fallback"></script>
+  <script src="/app.js?v=20260622-exam-module"></script>
 </body>
 </html>

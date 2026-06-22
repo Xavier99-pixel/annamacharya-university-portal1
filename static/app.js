@@ -10,7 +10,48 @@ const state = {
   adminData: null,
   otpVerifiedPhone: "",
   adminUnlocked: false,
+  exams: null,
+  selectedSemester: null,
+  examMode: "external",
+  examDetailOpen: false,
 };
+
+const SUBJECT_OPTIONS = [
+  { semester: 1, code: "24AEEE11T", name: "Basic Electrical and Electronics Engineering" },
+  { semester: 1, code: "24ACHE11T", name: "Chemistry" },
+  { semester: 1, code: "24AMAT11T", name: "Matrix Theory and Calculus" },
+  { semester: 1, code: "24ACSE11T", name: "Computational Problem Solving" },
+  { semester: 1, code: "24AMEC11T", name: "Engineering Drawing" },
+  { semester: 1, code: "24AEEE11L", name: "Basic Electrical and Electronics Engineering Lab" },
+  { semester: 1, code: "24ACHE11L", name: "Chemistry Lab" },
+  { semester: 1, code: "24ACSE11L", name: "Computational Problem-Solving Lab" },
+  { semester: 2, code: "24APHY21T", name: "Applied Physics" },
+  { semester: 2, code: "24AMAT21T", name: "Differential Equations and Transform Techniques" },
+  { semester: 2, code: "24AENG21T", name: "English for Engineers" },
+  { semester: 2, code: "24AECE22T", name: "Electronic Devices and Circuits" },
+  { semester: 2, code: "24AEEE23T", name: "Network Analysis" },
+  { semester: 2, code: "24AMEC22L", name: "Engineering and IT Workshop" },
+  { semester: 2, code: "24APHY21L", name: "Applied Physics Lab" },
+  { semester: 2, code: "24AENG21L", name: "English Language Communication Skills Lab" },
+  { semester: 2, code: "24AECE22L", name: "Electronic Devices and Circuits Lab" },
+  { semester: 3, code: "24AMAT33T", name: "Discrete Mathematics" },
+  { semester: 3, code: "24AUHV31T", name: "Universal Human Values-II" },
+  { semester: 3, code: "24ACSE31T", name: "Advanced Data Structures and Algorithm Analysis" },
+  { semester: 3, code: "24ACSE32T", name: "Object Oriented Programming through Java" },
+  { semester: 3, code: "24ACSE33T", name: "Database Management Systems" },
+  { semester: 3, code: "24ACSE34T", name: "Computer Organization" },
+  { semester: 3, code: "24ACSE31L", name: "Advanced Data Structures Lab" },
+  { semester: 3, code: "24ACSE33L", name: "Database Management Systems Lab" },
+  { semester: 4, code: "24AMAT41T", name: "Probability and Statistics" },
+  { semester: 4, code: "24ACSE41T", name: "Operating Systems" },
+  { semester: 4, code: "24ACSE42T", name: "Design and Analysis of Algorithms" },
+  { semester: 4, code: "24ACSE43T", name: "Artificial Intelligence" },
+  { semester: 4, code: "24ACSE44T", name: "Software Engineering" },
+  { semester: 4, code: "24ACSE45T", name: "Web Technologies" },
+  { semester: 4, code: "24ACSE41L", name: "Operating Systems Lab" },
+  { semester: 4, code: "24ACSE43L", name: "Artificial Intelligence Lab" },
+  { semester: 4, code: "24ACSE45L", name: "Web Technologies Lab" },
+];
 
 const views = Array.from(document.querySelectorAll(".view"));
 const toast = document.getElementById("toast");
@@ -72,6 +113,7 @@ isHod.addEventListener("change", () => {
   syncHodRegistrationFields();
 });
 syncHodRegistrationFields();
+populateSubjectSelects();
 
 document.querySelectorAll("[data-photo]").forEach((input) => {
   input.addEventListener("change", async () => {
@@ -196,8 +238,29 @@ document.getElementById("facultyAttendanceForm").addEventListener("submit", asyn
   await loadFaculty();
 });
 
+document.querySelectorAll(".exam-mark-form").forEach((form) => {
+  form.addEventListener("submit", handleExamMarkForm);
+});
+
 document.getElementById("studentSearch").addEventListener("input", renderStudentsTable);
 document.getElementById("facultySearch").addEventListener("input", renderFacultyTable);
+document.querySelectorAll("[data-student-tab]").forEach((button) => {
+  button.addEventListener("click", () => setStudentTab(button.dataset.studentTab));
+});
+document.getElementById("examBackToList").addEventListener("click", () => {
+  if (state.examDetailOpen) {
+    state.examDetailOpen = false;
+    renderExamPerformance();
+  } else {
+    setStudentTab("overview");
+  }
+});
+document.querySelectorAll("[data-exam-mode]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.examMode = button.dataset.examMode;
+    renderExamPerformance();
+  });
+});
 adminKeyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await loadAdminOverview();
@@ -282,6 +345,21 @@ async function postJson(url, payload) {
   const result = await response.json();
   result.status = response.status;
   return result;
+}
+
+function populateSubjectSelects() {
+  const grouped = SUBJECT_OPTIONS.reduce((groups, subject) => {
+    groups[subject.semester] = groups[subject.semester] || [];
+    groups[subject.semester].push(subject);
+    return groups;
+  }, {});
+  document.querySelectorAll("[data-subject-select]").forEach((select) => {
+    select.innerHTML = '<option value="">Select subject</option>' + Object.entries(grouped).map(([semester, subjects]) => `
+      <optgroup label="Semester ${escapeHtml(semester)}">
+        ${subjects.map((subject) => `<option value="${escapeHtml(subject.code)}">${escapeHtml(subject.code)} - ${escapeHtml(subject.name)}</option>`).join("")}
+      </optgroup>
+    `).join("");
+  });
 }
 
 async function handleAuthResult(result, form) {
@@ -507,6 +585,50 @@ async function handleAdminRecord(event) {
   await handleAdminActionResult(result, event.currentTarget);
 }
 
+async function handleExamMarkForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const payload = {
+    roll_number: data.roll_number,
+    semester: data.semester,
+    subject_code: data.subject_code,
+    subject_name: data.subject_name,
+    mid1: data.mid1,
+    mid2: data.mid2,
+    assignment1: data.assignment1,
+    assignment2: data.assignment2,
+    lab_internal: data.lab_internal,
+    external_theory: data.external_theory,
+    external_lab: data.external_lab,
+    final_grade: data.final_grade,
+    status: data.status,
+  };
+  const result = form.dataset.adminExam === "true"
+    ? await postJson("/api/admin/action", {
+      admin_key: adminKey(),
+      action: "update_exam_mark",
+      ...payload,
+    })
+    : await postJson("/api/exam-mark", payload);
+
+  if (!result.ok) {
+    notify(result.message || "Could not update exam marks.", "error");
+    return;
+  }
+  notify(result.message || "Exam marks updated.", "success");
+  form.reset();
+  if (form.dataset.adminExam === "true" && state.adminUnlocked) {
+    await loadAdminOverview();
+  }
+  if (state.user?.role === "faculty" || state.user?.role === "hod") {
+    await loadStudents();
+  }
+  if (state.user?.role === "student") {
+    await loadStudentExams();
+  }
+}
+
 async function handleAdminNotice(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -587,11 +709,15 @@ function adminKey() {
 }
 
 async function renderStudentDashboard(user) {
+  state.selectedSemester = null;
+  state.examMode = "external";
+  state.examDetailOpen = false;
   document.getElementById("dashName").textContent = `Welcome, ${user.name}`;
   document.getElementById("dashMeta").textContent = `Roll Number: ${user.roll_number} · ${user.course} ${user.branch || ""}`;
   document.getElementById("dashProfile").textContent = `${user.course}, ${user.branch}, ${user.year}, ${user.semester}. Gender: ${user.gender}.`;
   document.getElementById("dashPhoto").src = user.profile_photo || "/images/au1.jpeg";
   renderSavedDetails(user);
+  setStudentTab("overview");
 
   const response = await fetch("/api/me");
   const result = await response.json();
@@ -604,6 +730,147 @@ async function renderStudentDashboard(user) {
     ["CGPA", `${record.cgpa || 0}/10`],
     ["Performance", record.performance || "Not updated"],
   ]);
+  await loadStudentExams();
+}
+
+function setStudentTab(tab) {
+  document.querySelectorAll("[data-student-tab]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.studentTab === tab);
+  });
+  document.getElementById("studentOverviewPanel").classList.toggle("is-hidden", tab !== "overview");
+  document.getElementById("studentExamPanel").classList.toggle("is-hidden", tab !== "exams");
+  if (tab === "exams") {
+    renderExamPerformance();
+  }
+}
+
+async function loadStudentExams() {
+  const response = await fetch("/api/exams");
+  const result = await response.json();
+  if (!result.ok) {
+    notify(result.message || "Could not load exam performance.", "error");
+    return;
+  }
+  state.exams = result;
+  state.selectedSemester = state.selectedSemester || result.current_semester || 1;
+  renderExamPerformance();
+}
+
+function renderExamPerformance() {
+  const cards = document.getElementById("semesterCards");
+  const detail = document.getElementById("semesterDetail");
+  const title = document.getElementById("examPanelTitle");
+  if (!state.exams) {
+    cards.innerHTML = "<p class=\"admin-note\">Exam performance will appear after login.</p>";
+    detail.classList.add("is-hidden");
+    return;
+  }
+
+  const semesters = [...(state.exams.semesters || [])].sort((a, b) => b.semester - a.semester);
+  cards.innerHTML = semesters.map((semester) => `
+    <button class="semester-card" type="button" data-semester="${escapeHtml(semester.semester)}">
+      <span class="semester-number">${String(semester.semester).padStart(2, "0")}</span>
+      <span><strong>${escapeHtml(semester.label)}</strong><small>${escapeHtml(semester.status)}</small></span>
+    </button>
+  `).join("") || "<p class=\"admin-note\">No semesters are ready for this student yet.</p>";
+
+  cards.querySelectorAll("[data-semester]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedSemester = Number(button.dataset.semester);
+      state.examDetailOpen = true;
+      state.examMode = "external";
+      renderExamPerformance();
+    });
+  });
+
+  cards.classList.toggle("is-hidden", state.examDetailOpen);
+  detail.classList.toggle("is-hidden", !state.examDetailOpen);
+  title.textContent = state.examDetailOpen ? semesterTitle(state.selectedSemester) : "Exam Performance";
+  if (state.examDetailOpen) renderSemesterDetail();
+}
+
+function renderSemesterDetail() {
+  const semester = (state.exams.semesters || []).find((item) => item.semester === state.selectedSemester);
+  if (!semester) return;
+  document.querySelectorAll("[data-exam-mode]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.examMode === state.examMode);
+  });
+
+  const student = state.exams.student || state.user || {};
+  document.getElementById("examStudentMeta").innerHTML = [
+    ["HallTicket Number", student.roll_number || "-"],
+    ["Student Name", student.name || "-"],
+    ["Degree", student.course || "-"],
+    ["Program", student.branch || "-"],
+    ["Sem", academicSemLabel(semester.semester)],
+  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
+
+  document.getElementById("examSubjectList").innerHTML = state.examMode === "external"
+    ? renderExternalSubjects(semester.subjects || [])
+    : renderInternalSubjects(semester.subjects || []);
+}
+
+function renderExternalSubjects(subjects) {
+  return subjects.map((subject, index) => `
+    <article class="exam-subject-card external-subject-card">
+      <header>
+        <div>
+          <h4>${escapeHtml(subject.subject_name)}</h4>
+          <span>${escapeHtml(subject.subject_code)}</span>
+        </div>
+        <strong>#${String(index + 1).padStart(2, "0")}</strong>
+      </header>
+      <div class="external-mark-grid">
+        <div><span>Credits</span><strong>${escapeHtml(formatNumber(subject.credits))}</strong></div>
+        <div><span>Final grade</span><strong>${escapeHtml(subject.final_grade || "N/A")}</strong></div>
+        <div><span>Status</span><strong class="${subject.status === "P" ? "pass-text" : ""}">${escapeHtml(subject.status || "Pending")}</strong></div>
+      </div>
+      <dl class="exam-mark-lines">
+        <div><dt>External Theory</dt><dd>${escapeHtml(formatNumber(subject.external_theory))}/100</dd></div>
+        <div><dt>External Lab</dt><dd>${escapeHtml(formatNumber(subject.external_lab))}/100</dd></div>
+      </dl>
+    </article>
+  `).join("") || "<p class=\"admin-note\">No external marks available for this semester yet.</p>";
+}
+
+function renderInternalSubjects(subjects) {
+  return subjects.map((subject, index) => `
+    <details class="exam-subject-card internal-subject-card" ${index === 0 ? "open" : ""}>
+      <summary>
+        <span>${escapeHtml(subject.subject_name)}</span>
+        <span class="material-symbols-outlined">expand_more</span>
+      </summary>
+      <dl class="exam-mark-lines">
+        <div><dt>Mid Examination 1</dt><dd>${escapeHtml(formatNumber(subject.mid1))}/30.0</dd></div>
+        <div><dt>Mid Examination 2</dt><dd>${escapeHtml(formatNumber(subject.mid2))}/30.0</dd></div>
+        <div><dt>Assignment 1</dt><dd>${escapeHtml(formatNumber(subject.assignment1))}/10.0</dd></div>
+        <div><dt>Assignment 2</dt><dd>${escapeHtml(formatNumber(subject.assignment2))}/10.0</dd></div>
+        <div><dt>Lab Internals</dt><dd>${escapeHtml(formatNumber(subject.lab_internal))}/100.0</dd></div>
+      </dl>
+    </details>
+  `).join("") || "<p class=\"admin-note\">No internal marks available for this semester yet.</p>";
+}
+
+function semesterTitle(semester) {
+  return `${ordinalText(semester)} Semester`;
+}
+
+function ordinalText(number) {
+  const suffix = number === 1 ? "st" : number === 2 ? "nd" : number === 3 ? "rd" : "th";
+  return `${number}${suffix}`;
+}
+
+function academicSemLabel(semester) {
+  const year = Math.ceil(semester / 2);
+  const half = semester % 2 === 0 ? "II" : "I";
+  const romanYear = ["I", "II", "III", "IV"][year - 1] || String(year);
+  return `${romanYear}-${half}`;
+}
+
+function formatNumber(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return "0";
+  return Number.isInteger(number) ? String(number) : number.toFixed(1);
 }
 
 function renderStaffHeading(user) {
@@ -905,7 +1172,10 @@ function answerChatbot(question) {
     return "Student flow: click Student Registration, add profile/photo/course/branch/year/semester/roll number plus optional email, DOB, blood group and guardian details, verify phone OTP, create password, then login with roll number.";
   }
   if (q.includes("faculty") || q.includes("marks") || q.includes("attendance")) {
-    return "Faculty flow: register with a university faculty code, login as Faculty with that code, then use the Faculty Workspace to update student attendance, internal marks, external marks, CGPA and performance by roll number.";
+    return "Faculty flow: register with a university faculty code, login as Faculty with that code, then use the Faculty Workspace to update student attendance, CGPA, performance, and detailed semester exam marks by roll number.";
+  }
+  if (q.includes("exam") || q.includes("semester") || q.includes("internal") || q.includes("external")) {
+    return "Exam module: students open Dashboard > Exams to see semester cards. Each semester opens External marks in highlighted blue cards and Internal marks as subject assessment rows. Faculty, HOD, and admin update those marks by roll number, semester, and subject.";
   }
   if (q.includes("hod") || q.includes("head")) {
     return "HOD flow: check Register as HOD, use only the HOD code, create password, then login as HOD using the HOD code. HODs can monitor faculty attendance and student academic records.";
