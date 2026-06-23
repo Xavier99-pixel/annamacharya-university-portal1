@@ -68,6 +68,10 @@ Stores valid HOD verification codes.
 
 Stores student attendance, marks, CGPA, and performance.
 
+`exam_marks`
+
+Stores semester-wise subject marks: mid exams, assignments, lab internals, external theory/lab marks, final grade, and status.
+
 `faculty_attendance`
 
 Stores faculty attendance and performance controlled by HOD accounts.
@@ -118,14 +122,14 @@ python3 manage.py delete-user 1
 
 This is the simplest free path for the current Python + SQLite project.
 
-Important free-mode limitation:
+Important free-mode limitation without cloud backup:
 
 ```text
 SQLite data on Render free mode is temporary.
 If the service restarts or redeploys, registered users and marks can reset.
 ```
 
-This is okay for a college project demo. It is not okay for a real production university system.
+The portal now supports an optional free cloud-backup layer. The website still uses SQLite, but after registrations, marks, notices, codes, or admin changes, it uploads the live SQLite file to Supabase Storage. On Render restart, if `/tmp/annamacharya_portal.sqlite3` is empty, the app downloads the latest backup first.
 
 1. Create a GitHub repository.
 2. Upload/push this project folder to GitHub.
@@ -150,6 +154,37 @@ Value: choose-your-private-admin-key
 ```
 
 On Render, set `ADMIN_KEY`. If you do not set it, deployed admin actions are blocked.
+
+## Free Persistent Backup With Supabase Storage
+
+Use this when you want free Render hosting but do not want student/faculty/HOD data to vanish after restart.
+
+1. Create a free Supabase project.
+2. Go to Supabase Project Settings.
+3. Copy the Project URL.
+4. Copy the service role key. Keep this private. Do not paste it in frontend code.
+5. In Render, open your web service.
+6. Go to Environment.
+7. Add these variables:
+
+```text
+CLOUD_BACKUP_PROVIDER=supabase
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_BUCKET=annamacharya-portal-backups
+SUPABASE_OBJECT_PATH=annamacharya_live_database.sqlite3
+```
+
+8. Redeploy the Render service.
+
+How it works:
+
+```text
+Student/faculty/HOD/admin change -> SQLite writes data -> app uploads SQLite backup to Supabase Storage
+Render restart -> local /tmp database is empty -> app downloads SQLite backup -> users appear again
+```
+
+You can still use the Admin Monitor SQLite Backup button. Supabase backup is an automatic safety copy, while Admin Monitor backup is your manual download.
 
 For free real-SMS demo OTP, the portal automatically uses Textbelt on Render when `SMS_PROVIDER` is not set. You can also add it manually:
 

@@ -42,6 +42,16 @@ DEFAULT_FACULTY_CODES = ("AU-FAC-2026", "AU-STAFF-1001", "AITS-FAC-7788")
 DEFAULT_HOD_CODES = ("AU-HOD-CSE-2026", "AU-HOD-MBA-2026", "AU-HOD-ADMIN-2026")
 LOCAL_ADMIN_KEY = "AU-ADMIN-2026"
 ADMIN_KEY = os.environ.get("ADMIN_KEY") or ("" if RUNNING_ON_RENDER else LOCAL_ADMIN_KEY)
+CLOUD_BACKUP_PROVIDER = os.environ.get("CLOUD_BACKUP_PROVIDER", "").strip().lower()
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = (
+    os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    or os.environ.get("SUPABASE_SERVICE_KEY")
+    or ""
+).strip()
+SUPABASE_BUCKET = os.environ.get("SUPABASE_BUCKET", "annamacharya-portal-backups").strip()
+SUPABASE_OBJECT_PATH = os.environ.get("SUPABASE_OBJECT_PATH", "annamacharya_live_database.sqlite3").strip().lstrip("/")
+MAX_CLOUD_BACKUP_BYTES = 25_000_000
 SUBJECT_CATALOG = {
     "btech": {
         1: [
@@ -99,6 +109,121 @@ def connect_db() -> sqlite3.Connection:
     db = sqlite3.connect(DB_PATH)
     db.row_factory = sqlite3.Row
     return db
+
+
+def cloud_backup_enabled() -> bool:
+    provider_enabled = CLOUD_BACKUP_PROVIDER in {"", "supabase", "auto"}
+    return bool(provider_enabled and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and SUPABASE_BUCKET)
+
+
+def storage_path(value: str) -> str:
+    return "/".join(urllib.parse.quote(part, safe="") for part in value.split("/") if part)
+
+
+def supabase_headers(content_type: str | None = None) -> dict:
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+    }
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
+
+
+def supabase_object_url() -> str:
+    bucket = urllib.parse.quote(SUPABASE_BUCKET, safe="")
+    return f"{SUPABASE_URL}/storage/v1/object/{bucket}/{storage_path(SUPABASE_OBJECT_PATH)}"
+
+
+_SUPABASE_BUCKET_READY = False
+
+
+def ensure_supabase_bucket() -> None:
+    global _SUPABASE_BUCKET_READY
+    if _SUPABASE_BUCKET_READY:
+        return
+    payload = json.dumps(
+        {"id": SUPABASE_BUCKET, "name": SUPABASE_BUCKET, "public": False}
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        f"{SUPABASE_URL}/storage/v1/bucket",
+        data=payload,
+        headers=supabase_headers("application/json"),
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15):
+            pass
+    except urllib.error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore").lower()
+        if exc.code not in {400, 409} and "already" not in details:
+            raise
+    _SUPABASE_BUCKET_READY = True
+
+
+def local_database_has_users() -> bool:
+    if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
+        return False
+    try:
+        with sqlite3.connect(DB_PATH) as db:
+            row = db.execute("SELECT COUNT(*) FROM users").fetchone()
+    except sqlite3.DatabaseError:
+        return False
+    return bool(row and row[0] > 0)
+
+
+def restore_database_from_cloud_if_needed() -> None:
+    if not cloud_backup_enabled() or local_database_has_users():
+        return
+    try:
+        ensure_supabase_bucket()
+        request = urllib.request.Request(supabase_object_url(), headers=supabase_headers())
+        with urllib.request.urlopen(request, timeout=25) as response:
+            body = response.read(MAX_CLOUD_BACKUP_BYTES + 1)
+        if len(body) > MAX_CLOUD_BACKUP_BYTES:
+            raise ValueError("Cloud backup is larger than the allowed restore limit.")
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(suffix=".sqlite3", delete=False, dir=str(DB_PATH.parent)) as tmp:
+            restore_path = Path(tmp.name)
+            tmp.write(body)
+        try:
+            validate_sqlite_backup(restore_path)
+            os.replace(restore_path, DB_PATH)
+            print(f"Restored SQLite database from Supabase Storage: {SUPABASE_BUCKET}/{SUPABASE_OBJECT_PATH}")
+        finally:
+            if restore_path.exists():
+                restore_path.unlink()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            print("No Supabase SQLite backup found yet; starting with a fresh local database.")
+        else:
+            details = exc.read().decode("utf-8", errors="ignore")[:200]
+            print(f"Cloud restore skipped: Supabase returned {exc.code}. {details}")
+    except Exception as exc:
+        print(f"Cloud restore skipped: {exc}")
+
+
+def sync_database_to_cloud(reason: str) -> None:
+    if not cloud_backup_enabled() or not DB_PATH.exists():
+        return
+    try:
+        if DB_PATH.stat().st_size > MAX_CLOUD_BACKUP_BYTES:
+            raise ValueError("SQLite database is larger than the cloud backup limit.")
+        ensure_supabase_bucket()
+        request = urllib.request.Request(
+            supabase_object_url(),
+            data=DB_PATH.read_bytes(),
+            headers={
+                **supabase_headers("application/vnd.sqlite3"),
+                "x-upsert": "true",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=25):
+            pass
+        print(f"Synced SQLite backup to Supabase after {reason}.")
+    except Exception as exc:
+        print(f"Cloud backup skipped after {reason}: {exc}")
 
 
 def init_db() -> None:
@@ -943,6 +1068,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 )
             token, expires = create_session(db, user["id"])
 
+        sync_database_to_cloud("account registration")
         self.send_json(
             {"ok": True, "message": "Account created successfully.", "user": public_user(user)},
             cookie=session_cookie(token, expires),
@@ -968,6 +1094,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 (phone_number, otp_code, expires.isoformat(), now.isoformat()),
             )
             delivery = send_otp_sms(phone_number, otp_code)
+        sync_database_to_cloud("OTP request")
         response = {
             "ok": True,
             "message": delivery["message"],
@@ -1007,6 +1134,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
             if not row or not hmac.compare_digest(row["otp_code"], otp_code):
                 raise ValueError("Invalid or expired OTP.")
             db.execute("UPDATE otp_verifications SET verified = 1 WHERE id = ?", (row["id"],))
+        sync_database_to_cloud("OTP verification")
         self.send_json({"ok": True, "message": "Phone number verified successfully."})
 
     def login(self) -> None:
@@ -1158,6 +1286,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                     utc_now().isoformat(),
                 ),
             )
+        sync_database_to_cloud("student record update")
         self.send_json({"ok": True, "message": "Student academic record updated."})
 
     def update_exam_mark(self) -> None:
@@ -1165,6 +1294,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
         data = self.read_json()
         with connect_db() as db:
             message = apply_exam_mark_update(db, data, user["id"])
+        sync_database_to_cloud("exam mark update")
         self.send_json({"ok": True, "message": message})
 
     def faculty(self) -> None:
@@ -1217,6 +1347,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 """,
                 (faculty["id"], attendance, performance, user["id"], utc_now().isoformat()),
             )
+        sync_database_to_cloud("faculty attendance update")
         self.send_json({"ok": True, "message": "Faculty attendance updated."})
 
     def admin_overview(self, query: str) -> None:
@@ -1478,6 +1609,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                     "SELECT role, COUNT(*) AS total FROM users GROUP BY role ORDER BY role"
                 ).fetchall()
 
+            sync_database_to_cloud("manual admin database restore")
             self.send_json(
                 {
                     "ok": True,
@@ -1505,6 +1637,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 cursor = db.execute("DELETE FROM users WHERE id = ?", (user_id,))
             if not cursor.rowcount:
                 raise ValueError("No user found with that ID.")
+            sync_database_to_cloud("admin user deletion")
             self.send_json({"ok": True, "message": f"Deleted user ID {user_id}."})
             return
 
@@ -1533,6 +1666,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                     if not cursor.rowcount:
                         raise ValueError("Code not found.")
                     message = f"{code_type.title()} code deactivated: {code}."
+            sync_database_to_cloud("admin code change")
             self.send_json({"ok": True, "message": message})
             return
 
@@ -1555,6 +1689,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                     """,
                     (title, message, notice_type, target_role, utc_now().isoformat()),
                 )
+            sync_database_to_cloud("admin notice creation")
             self.send_json({"ok": True, "message": "Notice published successfully."})
             return
 
@@ -1564,6 +1699,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 cursor = db.execute("UPDATE notices SET active = 0 WHERE id = ?", (notice_id,))
             if not cursor.rowcount:
                 raise ValueError("Notice not found.")
+            sync_database_to_cloud("admin notice deactivation")
             self.send_json({"ok": True, "message": f"Notice ID {notice_id} deactivated."})
             return
 
@@ -1610,12 +1746,14 @@ class PortalHandler(SimpleHTTPRequestHandler):
                         utc_now().isoformat(),
                     ),
                 )
+            sync_database_to_cloud("admin student record update")
             self.send_json({"ok": True, "message": f"Updated record for {student['name']}."})
             return
 
         if action == "update_exam_mark":
             with connect_db() as db:
                 message = apply_exam_mark_update(db, data, None)
+            sync_database_to_cloud("admin exam mark update")
             self.send_json({"ok": True, "message": message})
             return
 
@@ -1976,6 +2114,7 @@ def session_cookie(token: str, expires: datetime) -> str:
 
 
 def main() -> None:
+    restore_database_from_cloud_if_needed()
     init_db()
     port = int(os.environ.get("PORT", "8000"))
     host = os.environ.get("HOST", "127.0.0.1")
