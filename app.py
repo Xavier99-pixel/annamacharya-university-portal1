@@ -172,6 +172,28 @@ def local_database_has_users() -> bool:
     return bool(row and row[0] > 0)
 
 
+def cloud_backup_status() -> dict:
+    user_count = 0
+    if DB_PATH.exists():
+        try:
+            with sqlite3.connect(DB_PATH) as db:
+                user_count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        except sqlite3.DatabaseError:
+            user_count = 0
+    return {
+        "enabled": cloud_backup_enabled(),
+        "provider": CLOUD_BACKUP_PROVIDER or "supabase",
+        "supabase_url_configured": bool(SUPABASE_URL),
+        "service_role_key_configured": bool(SUPABASE_SERVICE_ROLE_KEY),
+        "bucket": SUPABASE_BUCKET,
+        "object_path": SUPABASE_OBJECT_PATH,
+        "database_path": str(DB_PATH),
+        "database_exists": DB_PATH.exists(),
+        "database_size": DB_PATH.stat().st_size if DB_PATH.exists() else 0,
+        "user_count": user_count,
+    }
+
+
 def restore_database_from_cloud_if_needed() -> None:
     if not cloud_backup_enabled() or local_database_has_users():
         return
@@ -203,9 +225,16 @@ def restore_database_from_cloud_if_needed() -> None:
         print(f"Cloud restore skipped: {exc}")
 
 
-def sync_database_to_cloud(reason: str) -> None:
+def sync_database_to_cloud(reason: str) -> dict:
     if not cloud_backup_enabled() or not DB_PATH.exists():
-        return
+        status = cloud_backup_status()
+        message = (
+            "Supabase cloud backup is not configured. Check SUPABASE_URL and "
+            "SUPABASE_SERVICE_ROLE_KEY in Render environment variables."
+            if not status["enabled"]
+            else "SQLite database file does not exist yet."
+        )
+        return {"ok": False, "message": message, "cloud_backup": status}
     try:
         if DB_PATH.stat().st_size > MAX_CLOUD_BACKUP_BYTES:
             raise ValueError("SQLite database is larger than the cloud backup limit.")
@@ -221,9 +250,13 @@ def sync_database_to_cloud(reason: str) -> None:
         )
         with urllib.request.urlopen(request, timeout=25):
             pass
-        print(f"Synced SQLite backup to Supabase after {reason}.")
+        message = f"Synced SQLite backup to Supabase after {reason}."
+        print(message)
+        return {"ok": True, "message": message, "cloud_backup": cloud_backup_status()}
     except Exception as exc:
-        print(f"Cloud backup skipped after {reason}: {exc}")
+        message = f"Cloud backup skipped after {reason}: {exc}"
+        print(message)
+        return {"ok": False, "message": message, "cloud_backup": cloud_backup_status()}
 
 
 def init_db() -> None:
@@ -1460,6 +1493,7 @@ class PortalHandler(SimpleHTTPRequestHandler):
                 "codes": [dict(row) for row in codes],
                 "course_distribution": [dict(row) for row in course_rows],
                 "notices": [dict(row) for row in notices],
+                "cloud_backup": cloud_backup_status(),
                 "note": "This shows the database used by the running website instance.",
             }
         )
@@ -1626,6 +1660,11 @@ class PortalHandler(SimpleHTTPRequestHandler):
         data = self.read_json()
         verify_admin_key(data.get("admin_key"))
         action = clean(data.get("action"))
+
+        if action == "sync_cloud_backup":
+            result = sync_database_to_cloud("manual admin cloud sync")
+            self.send_json(result, HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST)
+            return
 
         if action == "delete_user":
             user_id = parse_positive_int(data.get("user_id"), "User ID")

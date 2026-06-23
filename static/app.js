@@ -78,6 +78,7 @@ const downloadAcademicCsv = document.getElementById("downloadAcademicCsv");
 const downloadFacultyCsv = document.getElementById("downloadFacultyCsv");
 const downloadNoticesCsv = document.getElementById("downloadNoticesCsv");
 const downloadSqliteBackup = document.getElementById("downloadSqliteBackup");
+const syncCloudBackup = document.getElementById("syncCloudBackup");
 const restoreDatabaseForm = document.getElementById("restoreDatabaseForm");
 const restoreDatabaseFile = document.getElementById("restoreDatabaseFile");
 const chatbotToggle = document.getElementById("chatbotToggle");
@@ -279,6 +280,7 @@ downloadAcademicCsv.addEventListener("click", () => downloadAdminExport("academi
 downloadFacultyCsv.addEventListener("click", () => downloadAdminExport("faculty.csv"));
 downloadNoticesCsv.addEventListener("click", () => downloadAdminExport("notices.csv"));
 downloadSqliteBackup.addEventListener("click", () => downloadAdminExport("database.sqlite3"));
+syncCloudBackup.addEventListener("click", handleSyncCloudBackup);
 restoreDatabaseForm.addEventListener("submit", handleRestoreDatabase);
 chatbotToggle.addEventListener("click", toggleChatbot);
 chatbotClose.addEventListener("click", closeChatbot);
@@ -446,6 +448,7 @@ function renderAdminOverview(result) {
 
   renderAdminMetrics(result);
   renderAdminUsersTable();
+  renderCloudBackupStatus(result.cloud_backup);
 
   document.getElementById("adminRecordsTable").innerHTML = (result.student_records || []).map((record) => `
     <tr>
@@ -472,6 +475,18 @@ function renderAdminOverview(result) {
   `).join("") || emptyRow(5, "No faculty or HOD codes found.");
 
   renderAdminNotices(result.notices || []);
+}
+
+function renderCloudBackupStatus(status = {}) {
+  const node = document.getElementById("cloudBackupStatus");
+  if (!node) return;
+  const configured = status.enabled;
+  const target = [status.bucket, status.object_path].filter(Boolean).join(" / ");
+  const userCount = status.user_count ?? 0;
+  const size = status.database_size ? `${Math.round(status.database_size / 1024)} KB` : "0 KB";
+  node.innerHTML = configured
+    ? `<strong>Supabase backup ready.</strong> Target: ${escapeHtml(target)}. Local users: ${escapeHtml(userCount)}. SQLite size: ${escapeHtml(size)}.`
+    : `<strong>Supabase backup not active.</strong> Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Render, save, then redeploy.`;
 }
 
 function renderAdminMetrics(result) {
@@ -672,6 +687,25 @@ function downloadAdminExport(filename) {
   }
   window.location.href = `/api/admin/export/${filename}?key=${encodeURIComponent(key)}`;
   notify("Preparing secure download from the live database.", "success");
+}
+
+async function handleSyncCloudBackup() {
+  const key = adminKey();
+  if (!key) {
+    notify("Enter admin key before syncing cloud backup.", "error");
+    return;
+  }
+  const result = await postJson("/api/admin/action", {
+    admin_key: key,
+    action: "sync_cloud_backup",
+  });
+  if (result.cloud_backup) renderCloudBackupStatus(result.cloud_backup);
+  if (!result.ok) {
+    notify(result.message || "Cloud backup sync failed.", "error");
+    return;
+  }
+  notify("Cloud backup synced. Refresh Supabase Storage bucket.", "success");
+  await loadAdminOverview();
 }
 
 async function handleRestoreDatabase(event) {

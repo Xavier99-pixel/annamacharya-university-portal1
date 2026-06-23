@@ -1208,6 +1208,18 @@ textarea:focus {
   justify-content: center;
 }
 
+.cloud-backup-status {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 97, 165, 0.16);
+  border-radius: 8px;
+  background: rgba(247, 250, 255, 0.86);
+}
+
+.cloud-backup-status strong {
+  color: var(--primary);
+}
+
 .admin-filters {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) 180px 180px;

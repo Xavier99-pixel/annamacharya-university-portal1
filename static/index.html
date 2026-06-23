@@ -281,7 +281,9 @@
             <button id="downloadFacultyCsv" class="ghost-btn" type="button"><span class="material-symbols-outlined">groups</span>Faculty CSV</button>
             <button id="downloadNoticesCsv" class="ghost-btn" type="button"><span class="material-symbols-outlined">campaign</span>Notices CSV</button>
             <button id="downloadSqliteBackup" class="primary-btn" type="button"><span class="material-symbols-outlined">database</span>SQLite Backup</button>
+            <button id="syncCloudBackup" class="ghost-btn" type="button"><span class="material-symbols-outlined">cloud_upload</span>Sync Cloud Backup</button>
           </div>
+          <p id="cloudBackupStatus" class="admin-note cloud-backup-status">Cloud backup status appears after you load the admin monitor.</p>
           <form id="restoreDatabaseForm" class="restore-form">
             <label>Restore SQLite Backup<input id="restoreDatabaseFile" type="file" accept=".sqlite3,.db,application/vnd.sqlite3"></label>
             <button class="ghost-btn" type="submit"><span class="material-symbols-outlined">upload_file</span>Restore Live Database</button>
@@ -588,6 +590,6 @@
     </section>
   </div>
 
-  <script src="/app.js?v=20260622-exam-module"></script>
+  <script src="/app.js?v=20260623-cloud-sync-debug"></script>
 </body>
 </html>
