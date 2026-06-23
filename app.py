@@ -43,7 +43,18 @@ DEFAULT_HOD_CODES = ("AU-HOD-CSE-2026", "AU-HOD-MBA-2026", "AU-HOD-ADMIN-2026")
 LOCAL_ADMIN_KEY = "AU-ADMIN-2026"
 ADMIN_KEY = os.environ.get("ADMIN_KEY") or ("" if RUNNING_ON_RENDER else LOCAL_ADMIN_KEY)
 CLOUD_BACKUP_PROVIDER = os.environ.get("CLOUD_BACKUP_PROVIDER", "").strip().lower()
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+
+
+def normalize_supabase_url(value: str) -> str:
+    url = str(value or "").strip().rstrip("/")
+    for marker in ("/rest/v1", "/storage/v1", "/auth/v1"):
+        if marker in url:
+            url = url.split(marker, 1)[0]
+            break
+    return url.rstrip("/")
+
+
+SUPABASE_URL = normalize_supabase_url(os.environ.get("SUPABASE_URL", ""))
 SUPABASE_SERVICE_ROLE_KEY = (
     os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     or os.environ.get("SUPABASE_SERVICE_KEY")
@@ -106,8 +117,10 @@ def utc_now() -> datetime:
 
 def connect_db() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(DB_PATH)
+    db = sqlite3.connect(DB_PATH, timeout=20)
     db.row_factory = sqlite3.Row
+    db.execute("PRAGMA foreign_keys = ON")
+    db.execute("PRAGMA busy_timeout = 5000")
     return db
 
 
@@ -229,8 +242,9 @@ def sync_database_to_cloud(reason: str) -> dict:
     if not cloud_backup_enabled() or not DB_PATH.exists():
         status = cloud_backup_status()
         message = (
-            "Supabase cloud backup is not configured. Check SUPABASE_URL and "
-            "SUPABASE_SERVICE_ROLE_KEY in Render environment variables."
+            "Supabase cloud backup is not configured. Check SUPABASE_URL, "
+            "SUPABASE_BUCKET, SUPABASE_OBJECT_PATH and SUPABASE_SERVICE_ROLE_KEY "
+            "in Render environment variables."
             if not status["enabled"]
             else "SQLite database file does not exist yet."
         )
@@ -925,6 +939,9 @@ class PortalHandler(SimpleHTTPRequestHandler):
             if parsed.path.startswith("/api/"):
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
+            if parsed.path == "/favicon.ico":
+                self.path = "/images/au1.jpeg"
+                return super().do_GET()
             if parsed.path in {"/", "/admin"}:
                 self.path = "/index.html"
             return super().do_GET()
@@ -2146,9 +2163,10 @@ def create_session(db: sqlite3.Connection, user_id: int) -> tuple[str, datetime]
 
 
 def session_cookie(token: str, expires: datetime) -> str:
+    secure = "; Secure" if RUNNING_ON_RENDER else ""
     return (
         f"au_session={token}; Path=/; Expires={expires.strftime('%a, %d %b %Y %H:%M:%S GMT')}; "
-        "SameSite=Lax; HttpOnly"
+        f"SameSite=Lax; HttpOnly{secure}"
     )
 
 

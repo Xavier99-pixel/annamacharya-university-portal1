@@ -87,6 +87,7 @@ const chatbotClose = document.getElementById("chatbotClose");
 const chatbotForm = document.getElementById("chatbotForm");
 const chatbotInput = document.getElementById("chatbotInput");
 const chatbotMessages = document.getElementById("chatbotMessages");
+const studentPhone = document.getElementById("studentPhone");
 
 document.getElementById("enterPortal").addEventListener("click", () => {
   splash.style.transition = "opacity 520ms ease, transform 520ms ease";
@@ -109,6 +110,13 @@ document.getElementById("logoutBtn").addEventListener("click", logout);
 
 sendOtpBtn.addEventListener("click", requestStudentOtp);
 verifyOtpBtn.addEventListener("click", verifyStudentOtp);
+studentPhone.addEventListener("input", () => {
+  if (state.otpVerifiedPhone && cleanPhone(studentPhone.value) !== state.otpVerifiedPhone) {
+    state.otpVerifiedPhone = "";
+    otpStatus.textContent = "Phone number changed. Send and verify OTP again.";
+    otpStatus.className = "otp-error";
+  }
+});
 
 isHod.addEventListener("change", () => {
   syncHodRegistrationFields();
@@ -296,8 +304,7 @@ window.addEventListener("hashchange", () => {
 
 async function hydrate() {
   try {
-    const response = await fetch("/api/me");
-    const result = await response.json();
+    const result = await fetchJson("/api/me");
     if (result.authenticated) {
       state.user = result.user;
     }
@@ -339,13 +346,46 @@ function showView(id) {
 }
 
 async function postJson(url, payload) {
-  const response = await fetch(url, {
+  return fetchJson(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const result = await response.json();
+}
+
+async function fetchJson(url, options = {}) {
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      message: "Network connection failed. Check the server and try again.",
+    };
+  }
+  const contentType = response.headers.get("Content-Type") || "";
+  let result;
+  if (contentType.includes("application/json")) {
+    try {
+      result = await response.json();
+    } catch {
+      result = {
+        ok: false,
+        message: `Server returned invalid JSON (${response.status}). Try refreshing the page.`,
+      };
+    }
+  } else {
+    const text = await response.text();
+    result = {
+      ok: false,
+      message: text.trim() || `Server returned ${response.status}.`,
+    };
+  }
   result.status = response.status;
+  if (!response.ok && result.ok !== false) {
+    result.ok = false;
+  }
   return result;
 }
 
@@ -424,8 +464,7 @@ async function loadAdminOverview() {
     notify("Enter admin key to open live monitor.", "error");
     return;
   }
-  const response = await fetch(`/api/admin/overview?key=${encodeURIComponent(key)}`);
-  const result = await response.json();
+  const result = await fetchJson(`/api/admin/overview?key=${encodeURIComponent(key)}`);
   if (!result.ok) {
     notify(result.message || "Could not load admin monitor.", "error");
     return;
@@ -723,12 +762,11 @@ async function handleRestoreDatabase(event) {
   const confirmed = window.confirm("Restore this backup to the live database? This replaces the current live data.");
   if (!confirmed) return;
 
-  const response = await fetch(`/api/admin/restore/database.sqlite3?key=${encodeURIComponent(key)}`, {
+  const result = await fetchJson(`/api/admin/restore/database.sqlite3?key=${encodeURIComponent(key)}`, {
     method: "POST",
     headers: { "Content-Type": "application/vnd.sqlite3" },
     body: file,
   });
-  const result = await response.json();
   if (!result.ok) {
     notify(result.message || "Could not restore database.", "error");
     return;
@@ -753,8 +791,7 @@ async function renderStudentDashboard(user) {
   renderSavedDetails(user);
   setStudentTab("overview");
 
-  const response = await fetch("/api/me");
-  const result = await response.json();
+  const result = await fetchJson("/api/me");
   const record = result.user?.academic_record || {};
   renderMetricList("studentAcademicRecord", [
     ["Attendance", `${record.attendance || 0}%`],
@@ -779,8 +816,7 @@ function setStudentTab(tab) {
 }
 
 async function loadStudentExams() {
-  const response = await fetch("/api/exams");
-  const result = await response.json();
+  const result = await fetchJson("/api/exams");
   if (!result.ok) {
     notify(result.message || "Could not load exam performance.", "error");
     return;
@@ -913,8 +949,7 @@ function renderStaffHeading(user) {
 }
 
 async function loadStudents() {
-  const response = await fetch("/api/students");
-  const result = await response.json();
+  const result = await fetchJson("/api/students");
   if (!result.ok) {
     notify(result.message || "Could not load students.", "error");
     return;
@@ -925,8 +960,7 @@ async function loadStudents() {
 }
 
 async function loadFaculty() {
-  const response = await fetch("/api/faculty");
-  const result = await response.json();
+  const result = await fetchJson("/api/faculty");
   if (!result.ok) {
     notify(result.message || "Could not load faculty.", "error");
     return;
@@ -936,8 +970,7 @@ async function loadFaculty() {
 }
 
 async function loadNotices() {
-  const response = await fetch("/api/notices");
-  const result = await response.json();
+  const result = await fetchJson("/api/notices");
   if (!result.ok) {
     state.notices = [];
     return;
@@ -1236,7 +1269,7 @@ function answerChatbot(question) {
     return "OTP flow: student enters phone, clicks Send OTP, backend stores a 6 digit OTP, then sends it by SMS. Free demo setup uses SMS_PROVIDER=textbelt and TEXTBELT_KEY=textbelt; local testing can still use demo mode.";
   }
   if (q.includes("deploy") || q.includes("render")) {
-    return "Deployment: push latest GitHub main branch, then deploy on Render. Free Render uses temporary SQLite at /tmp, so data can reset on redeploy. For permanent data, use a persistent disk or cloud database.";
+    return "Deployment: push latest GitHub main branch, then deploy on Render. Free Render uses temporary SQLite at /tmp, so use Supabase Storage backup variables and the admin backup/restore tools to protect live registrations.";
   }
   if (q.includes("security") || q.includes("password") || q.includes("jwt")) {
     return "Security: this portal uses PBKDF2-HMAC password hashing and HttpOnly session cookies. It does not use JWT currently. Admin actions require ADMIN_KEY.";
